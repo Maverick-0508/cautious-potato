@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Supervisor Dashboard | Lawn Craft</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body class="dashboard-body">
+
+  <!-- ======================================================
+       LOGIN SCREEN
+       ====================================================== -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <span class="logo-text">Lawn Craft</span>
+        <span class="logo-sub">Supervisor Portal</span>
+      </div>
+
+      <h2>Sign In</h2>
+
+      <div class="login-error" id="login-error" role="alert"></div>
+      <div class="login-info" id="login-info" role="status" aria-live="polite"></div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="login-email">Email Address</label>
+          <input type="email" id="login-email" name="email"
+                 placeholder="you@example.com" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" name="password"
+                 placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary-full">Sign In</button>
+      </form>
+
+      <p class="login-note">
+        Supervisor &amp; Admin accounts only.<br>
+        Contact an admin to reset your password.
+      </p>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       DASHBOARD APP
+       ====================================================== -->
+  <div id="app">
+
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    <!-- ── Sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar" aria-label="Dashboard navigation">
+      <div class="sidebar-brand">
+        <span class="brand-name">Lawn Craft</span>
+        <span class="brand-role">Supervisor Dashboard</span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Primary">
+        <div class="sidebar-section-label">Dashboard</div>
+        <a href="#" data-view="overview">
+          <i class="fa-solid fa-chart-pie"></i> Overview
+        </a>
+
+        <div class="sidebar-section-label">Work Orders</div>
+        <a href="#" data-view="queue">
+          <i class="fa-solid fa-inbox"></i> Incoming Queue
+          <span class="badge" id="queue-badge">0</span>
+        </a>
+        <a href="#" data-view="planning">
+          <i class="fa-solid fa-calendar-days"></i> Planning Board
+        </a>
+        <a href="#" data-view="active">
+          <i class="fa-solid fa-bolt"></i> Active Jobs
+        </a>
+        <a href="#" data-view="workorders">
+          <i class="fa-solid fa-list-check"></i> All Work Orders
+        </a>
+
+        <div class="sidebar-section-label">Monitoring</div>
+        <a href="#" data-view="exceptions">
+          <i class="fa-solid fa-triangle-exclamation"></i> Exceptions
+        </a>
+        <a href="#" data-view="report">
+          <i class="fa-solid fa-chart-line"></i> KPI Report
+        </a>
+
+        <button type="button" class="sidebar-section-toggle" data-collapse-target="nav-group-tools" aria-expanded="true">
+          <span class="sidebar-section-label">Tools</span>
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <div id="nav-group-tools" class="sidebar-collapsible open">
+          <a href="#" data-view="property">
+            <i class="fa-solid fa-house-chimney-magnifying-glass"></i> Property History
+          </a>
+        </div>
+
+        <button type="button" class="sidebar-section-toggle admin-only" data-collapse-target="nav-group-admin" aria-expanded="true">
+          <span class="sidebar-section-label admin-only">Admin Control</span>
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <div id="nav-group-admin" class="sidebar-collapsible open admin-only">
+          <a href="#" data-view="control" class="admin-only">
+            <i class="fa-solid fa-sliders"></i> Control Center
+          </a>
+          <a href="#" data-view="permissions" class="admin-only">
+            <i class="fa-solid fa-user-shield"></i> Permissions
+          </a>
+          <a href="#" data-view="audit" class="admin-only">
+            <i class="fa-solid fa-list-check"></i> Audit Trail
+          </a>
+          <a href="#" data-view="settings" class="admin-only">
+            <i class="fa-solid fa-gear"></i> Configuration Hub
+          </a>
+          <a href="#" data-view="monitoring" class="admin-only">
+            <i class="fa-solid fa-wave-square"></i> Live Monitoring
+          </a>
+          <a href="#" data-view="financial" class="admin-only">
+            <i class="fa-solid fa-file-invoice-dollar"></i> Financial Reports
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar" id="user-avatar">?</div>
+          <div class="user-info">
+            <div class="user-name" id="user-name">Loading…</div>
+            <div class="user-role" id="user-role">—</div>
+          </div>
+        </div>
+        <button class="btn-logout" id="logout-btn">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Main Content ────────────────────────────────── -->
+    <div class="main-content">
+
+      <!-- Top bar -->
+      <div class="top-bar">
+        <button class="hamburger-btn" aria-label="Open navigation">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <h1 id="page-title">Overview</h1>
+        <div class="top-bar-actions">
+          <button class="btn-secondary theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <i class="fa-solid fa-moon"></i> Dark
+          </button>
+          <button class="btn-refresh" id="refresh-btn">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+          <a href="/" class="btn-secondary" title="Back to website">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Site
+          </a>
+        </div>
+        <div class="dashboard-meta" aria-live="polite">
+          <span class="sync-pill sync-pill-live" id="sync-status"><span class="sync-dot"></span> Live</span>
+          <span class="sync-label" id="last-updated">Waiting for first sync…</span>
+        </div>
+      </div>
+
+      <!-- ── View: Overview ──────────────────────────────── -->
+      <section class="view-section active" id="view-overview">
+        <div class="overview-actions">
+          <div class="overview-actions-copy">
+            <div class="overview-kicker">Focus</div>
+            <h2>Move the work forward without extra clicks.</h2>
+            <p>Open the queue, review the plan, or jump to active jobs from one place.</p>
+          </div>
+          <div class="overview-actions-grid">
+            <button type="button" class="quick-action-card" data-view="queue">
+              <span class="quick-action-icon"><i class="fa-solid fa-inbox"></i></span>
+              <span class="quick-action-title">Incoming Queue</span>
+              <span class="quick-action-sub">Review new consultation requests</span>
+            </button>
+            <button type="button" class="quick-action-card" data-view="planning">
+              <span class="quick-action-icon"><i class="fa-solid fa-calendar-days"></i></span>
+              <span class="quick-action-title">Planning Board</span>
+              <span class="quick-action-sub">Schedule and assign next steps</span>
+            </button>
+            <button type="button" class="quick-action-card" data-view="active">
+              <span class="quick-action-icon"><i class="fa-solid fa-bolt"></i></span>
+              <span class="quick-action-title">Active Jobs</span>
+              <span class="quick-action-sub">Track work already on-site</span>
+            </button>
+            <button type="button" class="quick-action-card" data-view="report">
+              <span class="quick-action-icon"><i class="fa-solid fa-chart-line"></i></span>
+              <span class="quick-action-title">KPI Report</span>
+              <span class="quick-action-sub">Check performance trends</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="stats-container" class="stats-grid">
+          <div class="stat-card">
+            <span class="spinner"></span> Loading…
+          </div>
+        </div>
+
+        <div class="command-center-grid">
+          <section class="command-card" aria-labelledby="live-feed-title">
+            <div class="command-card-head">
+              <h3 id="live-feed-title"><i class="fa-solid fa-wave-square"></i> Live Activity Feed</h3>
+              <button type="button" class="btn-subtle" data-target-view="active">Open Active Jobs</button>
+            </div>
+            <div id="live-feed-container" class="activity-feed-list">
+              <div class="activity-empty">Loading live activity…</div>
+            </div>
+          </section>
+
+          <section class="command-card" aria-labelledby="live-map-title">
+            <div class="command-card-head">
+              <h3 id="live-map-title"><i class="fa-solid fa-map-location-dot"></i> Job Location Snapshot</h3>
+              <button type="button" class="btn-subtle" data-target-view="workorders">View All</button>
+            </div>
+            <div id="live-map-container" class="mini-map-wrap">
+              <div class="activity-empty">Loading job map…</div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ── View: Incoming Queue ────────────────────────── -->
+      <section class="view-section" id="view-queue">
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-inbox section-icon"></i> Incoming Queue</h2>
+            <span class="record-count" id="count-queue"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Work Order</th>
+                <th>Client</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Target Date</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-queue">
+              <tr class="loading-row"><td colspan="7"><span class="spinner"></span> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Planning Board ────────────────────────── -->
+      <section class="view-section" id="view-planning">
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-calendar-days section-icon"></i> Planning Board</h2>
+            <span class="record-count" id="count-planning"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Work Order</th>
+                <th>Client</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Target Date</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-planning">
+              <tr class="loading-row"><td colspan="7"><span class="spinner"></span> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Active Jobs ───────────────────────────── -->
+      <section class="view-section" id="view-active">
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-bolt section-icon"></i> Active Jobs</h2>
+            <span class="record-count" id="count-active"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Work Order</th>
+                <th>Client</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Target Date</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-active">
+              <tr class="loading-row"><td colspan="7"><span class="spinner"></span> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: All Work Orders ───────────────────────── -->
+      <section class="view-section" id="view-workorders">
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-list-check section-icon"></i> All Work Orders</h2>
+            <span class="record-count" id="count-workorders"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Work Order</th>
+                <th>Client</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Target Date</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-workorders">
+              <tr class="loading-row"><td colspan="7"><span class="spinner"></span> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Exceptions ────────────────────────────── -->
+      <section class="view-section" id="view-exceptions">
+        <div id="exceptions-container">
+          <div class="alert alert-info"><span class="spinner"></span> Loading exceptions…</div>
+        </div>
+      </section>
+
+      <!-- ── View: KPI Report ────────────────────────────── -->
+      <section class="view-section" id="view-report">
+        <div class="report-controls">
+          <label for="report-days-select">Period:</label>
+          <select id="report-days-select">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="60">Last 60 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last 12 months</option>
+          </select>
+        </div>
+        <div id="report-container">
+          <div class="alert alert-info"><span class="spinner"></span> Loading report…</div>
+        </div>
+      </section>
+
+      <!-- ── View: Property History ──────────────────────── -->
+      <section class="view-section" id="view-property">
+        <div class="search-bar">
+          <input type="text" id="property-search-input"
+                 placeholder="Enter address or partial address…"
+                 aria-label="Property address search">
+          <button id="property-search-btn">
+            <i class="fa-solid fa-magnifying-glass"></i> Search
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-house-chimney-magnifying-glass section-icon"></i> Property Timeline</h2>
+            <span class="record-count" id="count-property"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Work Order</th>
+                <th>Client</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Target Date</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-property">
+              <tr class="empty-row">
+                <td colspan="7">Enter an address above and click Search.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Admin Control Center ─────────────────── -->
+      <section class="view-section" id="view-control">
+        <div id="control-center-container" class="admin-panel-stack">
+          <div class="alert alert-info"><span class="spinner"></span> Loading control center…</div>
+        </div>
+      </section>
+
+      <!-- ── View: Permissions ─────────────────────────── -->
+      <section class="view-section" id="view-permissions">
+        <div id="permissions-container" class="admin-panel-stack">
+          <div class="alert alert-info"><span class="spinner"></span> Loading permissions…</div>
+        </div>
+      </section>
+
+      <!-- ── View: Audit Trail ─────────────────────────── -->
+      <section class="view-section" id="view-audit">
+        <div class="admin-toolbar">
+          <input type="search" id="audit-search-input" placeholder="Search actions, users, or notes…" aria-label="Search audit logs">
+          <button class="btn-secondary" id="audit-search-btn"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        </div>
+        <div id="audit-container" class="admin-panel-stack">
+          <div class="alert alert-info"><span class="spinner"></span> Loading audit trail…</div>
+        </div>
+      </section>
+
+      <!-- ── View: Configuration Hub ───────────────────── -->
+      <section class="view-section" id="view-settings">
+        <div id="settings-container" class="admin-panel-stack">
+          <div class="alert alert-info"><span class="spinner"></span> Loading configuration…</div>
+        </div>
+      </section>
+
+      <!-- ── View: Live Monitoring ─────────────────────── -->
+      <section class="view-section" id="view-monitoring">
+        <div id="monitoring-container" class="admin-panel-stack">
+          <div class="alert alert-info"><span class="spinner"></span> Loading monitoring data…</div>
+        </div>
+      </section>
+
+      <!-- ── View: Financial Reports ───────────────────── -->
+      <section class="view-section" id="view-financial">
+        <div id="financial-container" class="admin-panel-stack">
+          <div class="alert alert-info"><span class="spinner"></span> Loading financial report…</div>
+        </div>
+      </section>
+
+    </div><!-- /.main-content -->
+  </div><!-- /#app -->
+
+  <!-- ======================================================
+       WORK ORDER DETAIL MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="wo-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Work Order Detail</h2>
+        <button class="modal-close" id="modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body-content">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
