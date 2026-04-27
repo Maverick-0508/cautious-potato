@@ -35,7 +35,7 @@ If no override is set, the dashboard uses `/api` for same-origin deployments.
 
 1. Set the Vercel project root to `frontend/`.
 2. Deploy as a static site (no build step required).
-3. `vercel.json` rewrites `/` to `dashboard.html` to serve the dashboard at the subdomain root.
+3. `vercel.json` routes non-asset paths to `dashboard.html` while allowing static assets (CSS/JS/images/fonts) to pass through.
 4. Attach the custom domain (example: `dashboard.lawncraft.com`).
 5. Ensure `window.DASHBOARD_API_BASE` is set in `dashboard.html` (or a `config.js` loaded before `dashboard.js`) for production.
 

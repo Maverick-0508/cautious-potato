@@ -19,7 +19,7 @@
 // Local development safety:
 // - If the page is opened via file://, or from localhost on a non-8000 port,
 //   use the FastAPI backend on 127.0.0.1:8000.
-const trimTrailingSlashes = (value) => String(value || '').replace(/\/+$/, '');
+const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
 const LOCAL_API_BASE = 'http://127.0.0.1:8000/api';
 
 const API_BASE = (() => {
@@ -28,7 +28,7 @@ const API_BASE = (() => {
   const explicitBase = typeof window.DASHBOARD_API_BASE === 'string'
     ? window.DASHBOARD_API_BASE.trim()
     : '';
-  if (explicitBase) return trimTrailingSlashes(explicitBase);
+  if (explicitBase) return trimTrailingSlash(explicitBase);
 
   const { protocol, hostname, port } = window.location;
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
@@ -173,7 +173,8 @@ function clearToken() {
 }
 
 function shouldSetJsonContentType(options = {}) {
-  return Boolean(options.body) && !(options.body instanceof FormData);
+  if (!options.body) return false;
+  return typeof options.body === 'string';
 }
 
 function buildAuthHeaders(options = {}) {
@@ -439,7 +440,8 @@ function navigate(viewId, { pushHash = true } = {}) {
 
   if (!adminMode && ADMIN_VIEWS.has(normalizedViewId)) {
     showToast('Admin access is required for this section.', 'danger');
-    const shouldUpdateHash = window.location.hash !== '#overview';
+    const normalizedHash = String(window.location.hash || '').replace(/^#/, '');
+    const shouldUpdateHash = normalizedHash !== 'overview';
     if (currentView !== 'overview') {
       navigate('overview', { pushHash: shouldUpdateHash });
     } else if (shouldUpdateHash) {
