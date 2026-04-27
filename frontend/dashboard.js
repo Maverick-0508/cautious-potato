@@ -19,7 +19,7 @@
 // Local development safety:
 // - If the page is opened via file://, or from localhost on a non-8000 port,
 //   use the FastAPI backend on 127.0.0.1:8000.
-const normalizeApiBase = (value) => String(value || '').replace(/\/+$/, '');
+const trimTrailingSlashes = (value) => String(value || '').replace(/\/+$/, '');
 
 const API_BASE = (() => {
   if (typeof window === 'undefined') return '/api';
@@ -27,13 +27,13 @@ const API_BASE = (() => {
   const explicitBase = typeof window.DASHBOARD_API_BASE === 'string'
     ? window.DASHBOARD_API_BASE.trim()
     : '';
-  if (explicitBase) return normalizeApiBase(explicitBase);
+  if (explicitBase) return trimTrailingSlashes(explicitBase);
 
   const { protocol, hostname, port } = window.location;
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
 
-  if (protocol === 'file:') return normalizeApiBase('http://127.0.0.1:8000/api');
-  if (isLocalHost && port && port !== '8000') return normalizeApiBase('http://127.0.0.1:8000/api');
+  if (protocol === 'file:') return trimTrailingSlashes('http://127.0.0.1:8000/api');
+  if (isLocalHost && port && port !== '8000') return trimTrailingSlashes('http://127.0.0.1:8000/api');
 
   return '/api';
 })();
@@ -171,13 +171,17 @@ function clearToken() {
   localStorage.removeItem('dashboard_user');
 }
 
+function shouldSetJsonContentType(options = {}) {
+  return Boolean(options.body) && !(options.body instanceof FormData);
+}
+
 function buildAuthHeaders(options = {}) {
   const headers = new Headers(options.headers || {});
   const token = getToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
+  if (!headers.has('Content-Type') && shouldSetJsonContentType(options)) {
     headers.set('Content-Type', 'application/json');
   }
   return headers;

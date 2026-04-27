@@ -1,9 +1,10 @@
 {
 	"cleanUrls": true,
 	"trailingSlash": false,
-	"rewrites": [
-		{ "source": "/", "destination": "/dashboard.html" },
-		{ "source": "/dashboard", "destination": "/dashboard.html" },
-		{ "source": "/(.*)", "destination": "/dashboard.html" }
+	"routes": [
+		{ "handle": "filesystem" },
+		{ "src": "/dashboard", "dest": "/dashboard.html" },
+		{ "src": "/", "dest": "/dashboard.html" },
+		{ "src": "/(.*)", "dest": "/dashboard.html" }
 	]
 }

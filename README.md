@@ -17,7 +17,7 @@ Then open: `http://localhost:5173/dashboard.html`
 
 ## Configure API base
 
-The dashboard reads a runtime override from `window.DASHBOARD_API_BASE`. Place a script **before** `dashboard.js` in `dashboard.html` when you need to point at a different backend.
+The dashboard reads a runtime override from `window.DASHBOARD_API_BASE`. Place a script (or a small `config.js` file) **before** `dashboard.js` in `dashboard.html` when you need to point at a different backend.
 
 ```html
 <script>
@@ -37,7 +37,7 @@ If no override is set, the dashboard uses `/api` for same-origin deployments.
 2. Deploy as a static site (no build step required).
 3. `vercel.json` rewrites `/` to `dashboard.html` to serve the dashboard at the subdomain root.
 4. Attach the custom domain (example: `dashboard.lawncraft.com`).
-5. Ensure `window.DASHBOARD_API_BASE` is set in `dashboard.html` for production.
+5. Ensure `window.DASHBOARD_API_BASE` is set in `dashboard.html` (or a `config.js` loaded before `dashboard.js`) for production.
 
 ## Backend CORS requirement
 
