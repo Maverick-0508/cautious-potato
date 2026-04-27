@@ -439,9 +439,10 @@ function navigate(viewId, { pushHash = true } = {}) {
 
   if (!adminMode && ADMIN_VIEWS.has(normalizedViewId)) {
     showToast('Admin access is required for this section.', 'danger');
+    const shouldUpdateHash = window.location.hash !== '#overview';
     if (currentView !== 'overview') {
-      navigate('overview', { pushHash: true });
-    } else if (window.location.hash !== '#overview') {
+      navigate('overview', { pushHash: shouldUpdateHash });
+    } else if (shouldUpdateHash) {
       window.location.hash = 'overview';
     }
     return;

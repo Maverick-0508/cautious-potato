@@ -3,7 +3,6 @@
 	"trailingSlash": false,
 	"routes": [
 		{ "handle": "filesystem" },
-		{ "src": "/dashboard", "dest": "/dashboard.html" },
 		{ "src": "/(?!.*\\.(?:css|js|map|png|jpe?g|svg|ico|webp|woff2?|ttf|eot|otf)$).*", "dest": "/dashboard.html" }
 	]
 }
