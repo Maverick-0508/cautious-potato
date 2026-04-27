@@ -19,15 +19,22 @@
 // Local development safety:
 // - If the page is opened via file://, or from localhost on a non-8000 port,
 //   use the FastAPI backend on 127.0.0.1:8000.
+const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
+const LOCAL_API_BASE = 'http://127.0.0.1:8000/api';
+
 const API_BASE = (() => {
   if (typeof window === 'undefined') return '/api';
-  if (window.DASHBOARD_API_BASE) return window.DASHBOARD_API_BASE;
+
+  const explicitBase = typeof window.DASHBOARD_API_BASE === 'string'
+    ? window.DASHBOARD_API_BASE.trim()
+    : '';
+  if (explicitBase) return trimTrailingSlash(explicitBase);
 
   const { protocol, hostname, port } = window.location;
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
 
-  if (protocol === 'file:') return 'http://127.0.0.1:8000/api';
-  if (isLocalHost && port && port !== '8000') return 'http://127.0.0.1:8000/api';
+  if (protocol === 'file:') return LOCAL_API_BASE;
+  if (isLocalHost && port && port !== '8000') return LOCAL_API_BASE;
 
   return '/api';
 })();
@@ -165,33 +172,61 @@ function clearToken() {
   localStorage.removeItem('dashboard_user');
 }
 
-function authHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${getToken()}`,
-  };
+function shouldSetJsonContentType(options = {}) {
+  if (!options.body) return false;
+  return typeof options.body === 'string';
+}
+
+function buildAuthHeaders(options = {}) {
+  const headers = new Headers(options.headers || {});
+  const token = getToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (!headers.has('Content-Type') && shouldSetJsonContentType(options)) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return headers;
+}
+
+async function readErrorDetail(resp) {
+  const contentType = resp.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const body = await resp.json().catch(() => ({}));
+    return body.detail || body.message || null;
+  }
+  const text = await resp.text().catch(() => '');
+  return text || null;
 }
 
 async function apiFetch(path, options = {}) {
   const resp = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: authHeaders(),
+    headers: buildAuthHeaders(options),
   });
 
   if (resp.status === 401) {
     handleSessionExpired();
-    throw new Error('Session expired – please log in again.');
+    const error = new Error('Session expired – please log in again.');
+    // Callers can use this code to skip UI updates when the session has expired.
+    error.code = 'SESSION_EXPIRED';
+    throw error;
   }
 
   if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    throw new Error(body.detail || `HTTP ${resp.status}`);
+    const detail = await readErrorDetail(resp);
+    throw new Error(detail || `HTTP ${resp.status}`);
   }
 
-  // 204 No Content
   if (resp.status === 204) return null;
 
-  return resp.json();
+  const contentType = resp.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return resp.json();
+  }
+
+  const text = await resp.text().catch(() => '');
+  return text || null;
 }
 
 function handleSessionExpired() {
@@ -405,8 +440,12 @@ function navigate(viewId, { pushHash = true } = {}) {
 
   if (!adminMode && ADMIN_VIEWS.has(normalizedViewId)) {
     showToast('Admin access is required for this section.', 'danger');
+    const normalizedHash = String(window.location.hash || '').replace(/^#/, '');
+    const shouldUpdateHash = normalizedHash !== 'overview';
     if (currentView !== 'overview') {
-      navigate('overview', { pushHash });
+      navigate('overview', { pushHash: shouldUpdateHash });
+    } else if (shouldUpdateHash) {
+      window.location.hash = 'overview';
     }
     return;
   }
