@@ -19,7 +19,8 @@
 // Local development safety:
 // - If the page is opened via file://, or from localhost on a non-8000 port,
 //   use the FastAPI backend on 127.0.0.1:8000.
-const trimTrailingSlashes = (value) => String(value || '').replace(/\/+$/, '');
+const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
+const LOCAL_API_BASE = 'http://127.0.0.1:8000/api';
 
 const API_BASE = (() => {
   if (typeof window === 'undefined') return '/api';
@@ -27,13 +28,13 @@ const API_BASE = (() => {
   const explicitBase = typeof window.DASHBOARD_API_BASE === 'string'
     ? window.DASHBOARD_API_BASE.trim()
     : '';
-  if (explicitBase) return trimTrailingSlashes(explicitBase);
+  if (explicitBase) return trimTrailingSlash(explicitBase);
 
   const { protocol, hostname, port } = window.location;
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
 
-  if (protocol === 'file:') return trimTrailingSlashes('http://127.0.0.1:8000/api');
-  if (isLocalHost && port && port !== '8000') return trimTrailingSlashes('http://127.0.0.1:8000/api');
+  if (protocol === 'file:') return LOCAL_API_BASE;
+  if (isLocalHost && port && port !== '8000') return LOCAL_API_BASE;
 
   return '/api';
 })();
