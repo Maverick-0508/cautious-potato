@@ -1,8 +1,7 @@
 {
-	"cleanUrls": true,
-	"trailingSlash": false,
-	"routes": [
-		{ "handle": "filesystem" },
-		{ "src": "/(?!.*\\.(?:css|js|map|png|jpe?g|svg|ico|webp|woff2?|ttf|eot|otf)$).*", "dest": "/dashboard.html" }
-	]
+"cleanUrls": true,
+"trailingSlash": false,
+"redirects": [
+{ "source": "/", "destination": "/dashboard", "permanent": false }
+]
 }

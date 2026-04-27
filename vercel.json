@@ -1,13 +1,8 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
-    { "source": "/", "destination": "/frontend/dashboard.html" },
-    { "source": "/dashboard", "destination": "/frontend/dashboard.html" },
-    { "source": "/dashboard.css", "destination": "/frontend/dashboard.css" },
-    { "source": "/dashboard.js", "destination": "/frontend/dashboard.js" }
-  ],
   "redirects": [
-    { "source": "/dashboard.html", "destination": "/dashboard", "permanent": true }
+    { "source": "/", "destination": "/frontend/dashboard", "permanent": false },
+    { "source": "/dashboard", "destination": "/frontend/dashboard", "permanent": false }
   ]
 }
