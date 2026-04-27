@@ -19,7 +19,7 @@
 // Local development safety:
 // - If the page is opened via file://, or from localhost on a non-8000 port,
 //   use the FastAPI backend on 127.0.0.1:8000.
-const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
+const trimTrailingSlashes = (value) => String(value || '').replace(/\/+$/, '');
 const LOCAL_API_BASE = 'http://127.0.0.1:8000/api';
 
 const API_BASE = (() => {
@@ -28,7 +28,7 @@ const API_BASE = (() => {
   const explicitBase = typeof window.DASHBOARD_API_BASE === 'string'
     ? window.DASHBOARD_API_BASE.trim()
     : '';
-  if (explicitBase) return trimTrailingSlash(explicitBase);
+  if (explicitBase) return trimTrailingSlashes(explicitBase);
 
   const { protocol, hostname, port } = window.location;
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
@@ -207,6 +207,7 @@ async function apiFetch(path, options = {}) {
   if (resp.status === 401) {
     handleSessionExpired();
     const error = new Error('Session expired – please log in again.');
+    // Callers can use this code to skip UI updates when the session has expired.
     error.code = 'SESSION_EXPIRED';
     throw error;
   }
@@ -438,7 +439,11 @@ function navigate(viewId, { pushHash = true } = {}) {
 
   if (!adminMode && ADMIN_VIEWS.has(normalizedViewId)) {
     showToast('Admin access is required for this section.', 'danger');
-    navigate('overview', { pushHash: true });
+    if (currentView !== 'overview') {
+      navigate('overview', { pushHash: true });
+    } else if (window.location.hash !== '#overview') {
+      window.location.hash = 'overview';
+    }
     return;
   }
 
