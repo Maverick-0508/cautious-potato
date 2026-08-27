@@ -9,7 +9,13 @@
     "build": "echo 'Build complete'"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "firebase": "^12.18.0",
+    "firebase-admin": "^14.3.0",
+    "pg": "^8.23.0",
+    "sqlite3": "^6.0.1"
   }
 }

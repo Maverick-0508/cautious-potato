@@ -87,6 +87,22 @@
           <i class="fa-solid fa-list-check"></i> All Work Orders
         </a>
 
+        <div class="sidebar-section-label">Billing &amp; ERP</div>
+        <a href="#" data-view="invoices">
+          <i class="fa-solid fa-file-invoice-dollar"></i> Client Invoices
+          <span class="badge" id="invoices-badge">0</span>
+        </a>
+        <a href="#" data-view="inventory">
+          <i class="fa-solid fa-boxes-stacked"></i> Inventory ERP
+          <span class="badge" id="inventory-badge" style="display:none;background:var(--danger)">0</span>
+        </a>
+        <a href="#" data-view="payroll">
+          <i class="fa-solid fa-money-check-dollar"></i> Automated Payroll
+        </a>
+        <a href="#" data-view="automation">
+          <i class="fa-solid fa-robot"></i> Workflow Rules
+        </a>
+
         <div class="sidebar-section-label">Monitoring</div>
         <a href="#" data-view="exceptions">
           <i class="fa-solid fa-triangle-exclamation"></i> Exceptions
@@ -361,7 +377,317 @@
         </div>
       </section>
 
-      <!-- ── View: Property History ──────────────────────── -->
+      <!-- ── View: Client Invoices & Billing ─────────────── -->
+      <section class="view-section" id="view-invoices">
+        <div class="stats-grid" id="invoice-stats-container">
+          <div class="stat-card">
+            <div class="stat-label">Total Billed</div>
+            <div class="stat-value" id="inv-stat-billed">$0.00</div>
+            <div class="stat-sub">Lifetime invoiced revenue</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Total Collected</div>
+            <div class="stat-value" id="inv-stat-collected">$0.00</div>
+            <div class="stat-sub">Payments cleared &amp; recorded</div>
+          </div>
+          <div class="stat-card stat-warning">
+            <div class="stat-label">Outstanding Balance</div>
+            <div class="stat-value" id="inv-stat-outstanding">$0.00</div>
+            <div class="stat-sub">Pending client payment</div>
+          </div>
+          <div class="stat-card stat-danger">
+            <div class="stat-label">Overdue</div>
+            <div class="stat-value" id="inv-stat-overdue">$0.00</div>
+            <div class="stat-sub">Past due date</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar invoice-toolbar">
+          <div class="filter-group">
+            <label for="invoice-status-filter"><i class="fa-solid fa-filter"></i> Status:</label>
+            <select id="invoice-status-filter" aria-label="Filter invoices by status">
+              <option value="all">All Invoices</option>
+              <option value="draft">Draft</option>
+              <option value="issued">Issued / Unpaid</option>
+              <option value="partially_paid">Partially Paid</option>
+              <option value="paid">Paid in Full</option>
+              <option value="overdue">Overdue</option>
+              <option value="cancelled">Cancelled / Void</option>
+            </select>
+          </div>
+          <div class="search-box">
+            <input type="search" id="invoice-search-input" placeholder="Search invoice #, client, address, or item…" aria-label="Search invoices">
+          </div>
+          <button class="btn-primary" id="btn-create-invoice">
+            <i class="fa-solid fa-plus"></i> Create New Invoice
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-file-invoice-dollar section-icon"></i> Client Invoices</h2>
+            <span class="record-count" id="count-invoices"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Work Order</th>
+                <th>Client</th>
+                <th>Property Address</th>
+                <th>Issue Date</th>
+                <th>Due Date</th>
+                <th>Total</th>
+                <th>Balance Due</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-invoices">
+              <tr>
+                <td colspan="10" class="empty-row"><span class="spinner"></span> Loading invoices…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Inventory ERP ─────────────────────────── -->
+      <section class="view-section" id="view-inventory">
+        <div class="stats-grid" id="inventory-stats-container">
+          <div class="stat-card">
+            <div class="stat-label">Total SKUs Stocked</div>
+            <div class="stat-value" id="inv-stat-sku-count">0</div>
+            <div class="stat-sub">Active inventory catalog items</div>
+          </div>
+          <div class="stat-card stat-danger">
+            <div class="stat-label">Low Stock Alerts</div>
+            <div class="stat-value" id="inv-stat-low-count">0</div>
+            <div class="stat-sub">Below safety reorder threshold</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Total Asset Value</div>
+            <div class="stat-value" id="inv-stat-valuation">$0.00</div>
+            <div class="stat-sub">Warehouse &amp; yard inventory valuation</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">Automated Reordering</div>
+            <div class="stat-value" style="color:var(--info)">Active</div>
+            <div class="stat-sub">ERP auto-generates POs on threshold breach</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <div class="filter-group">
+            <label for="inventory-category-filter"><i class="fa-solid fa-filter"></i> Category:</label>
+            <select id="inventory-category-filter">
+              <option value="all">All Categories</option>
+              <option value="Seeds & Turf">Seeds &amp; Turf</option>
+              <option value="Fertilizer & Soil">Fertilizer &amp; Soil</option>
+              <option value="Irrigation Parts">Irrigation Parts</option>
+              <option value="Landscape Materials">Landscape Materials</option>
+              <option value="Equipment & Mower">Equipment &amp; Mower</option>
+            </select>
+          </div>
+          <div class="search-box">
+            <input type="search" id="inventory-search-input" placeholder="Search item name, SKU, supplier, or location…">
+          </div>
+          <button class="btn-secondary" id="btn-trigger-erp-sync">
+            <i class="fa-solid fa-robot"></i> Run Full ERP Automation Sync
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-boxes-stacked section-icon"></i> Warehouse &amp; Yard Inventory</h2>
+            <span class="record-count" id="count-inventory"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item &amp; Description</th>
+                <th>SKU</th>
+                <th>Category</th>
+                <th>On Hand</th>
+                <th>Min Safe Qty</th>
+                <th>Unit Cost</th>
+                <th>Unit Price</th>
+                <th>Location</th>
+                <th>Auto-Reorder</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-inventory">
+              <tr>
+                <td colspan="10" class="empty-row"><span class="spinner"></span> Loading inventory catalog…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Inventory Transaction Log -->
+        <div class="table-wrapper" style="margin-top: 24px;">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-clock-rotate-left section-icon"></i> Recent Material Consumption &amp; Reorder Logs</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Item</th>
+                <th>Type</th>
+                <th>Change Qty</th>
+                <th>Stock Level</th>
+                <th>Reason / Trigger</th>
+                <th>Actor</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-inventory-txns">
+              <tr>
+                <td colspan="7" class="empty-row"><span class="spinner"></span> Loading transactions…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Automated Payroll ─────────────────────── -->
+      <section class="view-section" id="view-payroll">
+        <div class="stats-grid" id="payroll-stats-container">
+          <div class="stat-card">
+            <div class="stat-label">Active Technicians</div>
+            <div class="stat-value" id="payroll-stat-employee-count">0</div>
+            <div class="stat-sub">Field techs &amp; supervisors</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">Hours Logged</div>
+            <div class="stat-value" id="payroll-stat-hours">0 hrs</div>
+            <div class="stat-sub">Regular &amp; overtime tracked</div>
+          </div>
+          <div class="stat-card stat-warning">
+            <div class="stat-label">Gross Payroll (Period)</div>
+            <div class="stat-value" id="payroll-stat-gross">$0.00</div>
+            <div class="stat-sub">Before statutory tax deductions</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Net Payout</div>
+            <div class="stat-value" id="payroll-stat-net">$0.00</div>
+            <div class="stat-sub">Calculated net take-home pay</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-weight:600;font-size:0.9rem;color:var(--text-medium);"><i class="fa-solid fa-bolt" style="color:var(--accent)"></i> Automated Engine:</span>
+            <span style="font-size:0.85rem;color:var(--text-light);">Calculates hours, overtime multipliers (1.5x), and completion bonuses automatically from closed work orders.</span>
+          </div>
+          <button class="btn-primary" id="btn-approve-all-payroll">
+            <i class="fa-solid fa-check-double"></i> Approve All Pending Drafts
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-money-check-dollar section-icon"></i> Technician Timesheets &amp; Pay Entries</h2>
+            <span class="record-count" id="count-payroll"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Entry ID</th>
+                <th>Technician</th>
+                <th>Role &amp; Dept</th>
+                <th>Pay Period</th>
+                <th>Hours Tracked</th>
+                <th>Rate</th>
+                <th>Jobs Done</th>
+                <th>Bonus</th>
+                <th>Gross Pay</th>
+                <th>Net Payout</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-payroll">
+              <tr>
+                <td colspan="11" class="empty-row"><span class="spinner"></span> Loading payroll ledger…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Workflow Rules & ERP Automation ───────── -->
+      <section class="view-section" id="view-automation">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Active Automation Rules</div>
+            <div class="stat-value" id="auto-stat-active-rules">0</div>
+            <div class="stat-sub">Automated event listeners active</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Total ERP Executions</div>
+            <div class="stat-value" id="auto-stat-executions">0</div>
+            <div class="stat-sub">Tasks automated without manual entry</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">Database Persistence</div>
+            <div class="stat-value" style="color:var(--success);"><i class="fa-solid fa-database"></i> SQLite Real</div>
+            <div class="stat-sub">Persistent storage on disk</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Engine Health</div>
+            <div class="stat-value" style="color:var(--success);">100% OK</div>
+            <div class="stat-sub">All background triggers operational</div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-robot section-icon"></i> Operational ERP Automation Rules</h2>
+            <span class="record-count" id="count-rules"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Rule Name &amp; Description</th>
+                <th>Trigger Event</th>
+                <th>Executions</th>
+                <th>Last Triggered</th>
+                <th>Status</th>
+                <th>Toggle</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-automation-rules">
+              <tr>
+                <td colspan="6" class="empty-row"><span class="spinner"></span> Loading automation rules…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Automation Event Stream -->
+        <div class="table-wrapper" style="margin-top: 24px;">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-satellite-dish section-icon"></i> Automation Execution Audit Log</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Event Type</th>
+                <th>Rule Name</th>
+                <th>Execution Details</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-automation-logs">
+              <tr>
+                <td colspan="5" class="empty-row"><span class="spinner"></span> Loading execution stream…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
       <section class="view-section" id="view-property">
         <div class="search-bar">
           <input type="text" id="property-search-input"
@@ -392,6 +718,32 @@
             <tbody id="tbody-property">
               <tr class="empty-row">
                 <td colspan="7">Enter an address above and click Search.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Associated Property Invoices -->
+        <div class="table-wrapper" style="margin-top: 24px;">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-receipt section-icon"></i> Invoices for this Property</h2>
+            <span class="record-count" id="count-property-invoices"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Work Order</th>
+                <th>Issue Date</th>
+                <th>Total</th>
+                <th>Balance Due</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-property-invoices">
+              <tr class="empty-row">
+                <td colspan="7">Search an address above to view billing history.</td>
               </tr>
             </tbody>
           </table>
@@ -459,6 +811,222 @@
         </button>
       </div>
       <div class="modal-body" id="modal-body-content">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       INVOICE FORM MODAL (CREATE / EDIT)
+       ====================================================== -->
+  <div class="modal-overlay" id="invoice-form-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-form-modal-title" aria-hidden="true">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 id="invoice-form-modal-title">Create Client Invoice</h2>
+        <button class="modal-close" id="invoice-form-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="invoice-form" novalidate>
+          <input type="hidden" id="inv-edit-id" value="">
+          
+          <div class="form-banner-link-wo">
+            <label for="inv-link-wo"><i class="fa-solid fa-link"></i> Autofill from Work Order (Optional):</label>
+            <select id="inv-link-wo" class="form-control">
+              <option value="">-- Standalone Invoice (No Work Order) --</option>
+            </select>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="inv-client-name">Client Name *</label>
+              <input type="text" id="inv-client-name" required placeholder="e.g. Arthur Pendelton">
+            </div>
+            <div class="form-group">
+              <label for="inv-client-email">Client Email</label>
+              <input type="email" id="inv-client-email" placeholder="client@example.com">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="inv-client-phone">Client Phone</label>
+              <input type="text" id="inv-client-phone" placeholder="(555) 000-0000">
+            </div>
+            <div class="form-group">
+              <label for="inv-property-address">Service &amp; Billing Address *</label>
+              <input type="text" id="inv-property-address" required placeholder="Street address, City">
+            </div>
+          </div>
+
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="inv-issue-date">Issue Date</label>
+              <input type="date" id="inv-issue-date">
+            </div>
+            <div class="form-group">
+              <label for="inv-due-date">Due Date</label>
+              <input type="date" id="inv-due-date">
+            </div>
+            <div class="form-group">
+              <label for="inv-payment-terms">Payment Terms</label>
+              <select id="inv-payment-terms">
+                <option value="Due on Receipt">Due on Receipt</option>
+                <option value="Net 15" selected>Net 15</option>
+                <option value="Net 30">Net 30</option>
+                <option value="Net 60">Net 60</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inv-status">Invoice Status</label>
+            <select id="inv-status">
+              <option value="draft">Draft (Unsent)</option>
+              <option value="issued" selected>Issued (Awaiting Payment)</option>
+              <option value="paid">Paid in Full</option>
+              <option value="overdue">Overdue</option>
+              <option value="cancelled">Cancelled / Void</option>
+            </select>
+          </div>
+
+          <!-- Line Items Table Builder -->
+          <div class="line-items-section">
+            <div class="line-items-header">
+              <h3><i class="fa-solid fa-list-ol"></i> Itemized Services &amp; Materials</h3>
+              <button type="button" class="btn-secondary btn-sm" id="btn-add-line-item">
+                <i class="fa-solid fa-plus"></i> Add Item
+              </button>
+            </div>
+            
+            <table class="line-items-table" id="line-items-table">
+              <thead>
+                <tr>
+                  <th style="width: 50%;">Description / Service</th>
+                  <th style="width: 15%;">Qty</th>
+                  <th style="width: 20%;">Unit Price ($)</th>
+                  <th style="width: 15%;">Total ($)</th>
+                  <th style="width: 40px;"></th>
+                </tr>
+              </thead>
+              <tbody id="line-items-tbody">
+                <!-- Rows rendered by JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Financial Calculation Box -->
+          <div class="invoice-calc-box">
+            <div class="calc-row">
+              <span>Subtotal:</span>
+              <strong id="calc-subtotal">$0.00</strong>
+            </div>
+            <div class="calc-row flex-row-align">
+              <label for="inv-tax-rate">Sales Tax (%):</label>
+              <input type="number" id="inv-tax-rate" value="6.5" step="0.1" min="0" max="100" class="input-inline-sm">
+              <span id="calc-tax-amount" class="calc-amount-label">+$0.00</span>
+            </div>
+            <div class="calc-row flex-row-align">
+              <label for="inv-discount-amount">Discount ($):</label>
+              <input type="number" id="inv-discount-amount" value="0.00" step="1.00" min="0" class="input-inline-sm">
+              <span id="calc-discount-amount" class="calc-amount-label">-$0.00</span>
+            </div>
+            <div class="calc-row calc-total-row">
+              <span>Total Invoice Amount:</span>
+              <strong id="calc-total">$0.00</strong>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label for="inv-notes">Client Notes &amp; Payment Instructions</label>
+            <textarea id="inv-notes" rows="2" placeholder="e.g. Thank you for your business! Please remit payment via check or card within 15 days."></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="invoice-form-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary" id="invoice-form-save-btn">
+              <i class="fa-solid fa-floppy-disk"></i> Save Invoice
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       PAYMENT RECORDING MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="payment-modal-title">Record Client Payment</h2>
+        <button class="modal-close" id="payment-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="payment-invoice-summary" id="payment-invoice-summary">
+          <!-- Summary rendered by JS -->
+        </div>
+
+        <form id="payment-form" novalidate>
+          <input type="hidden" id="payment-inv-id" value="">
+
+          <div class="form-group">
+            <label for="payment-amount">Payment Amount ($) *</label>
+            <input type="number" id="payment-amount" step="0.01" min="0.01" required placeholder="0.00">
+          </div>
+
+          <div class="form-group">
+            <label for="payment-method">Payment Method *</label>
+            <select id="payment-method" required>
+              <option value="Credit Card">Credit Card (Online / Terminal)</option>
+              <option value="Bank Transfer (ACH)">Bank Transfer / Direct ACH</option>
+              <option value="Check">Check</option>
+              <option value="Cash">Cash</option>
+              <option value="Debit Card">Debit Card</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="payment-reference">Reference / Check / Auth #</label>
+            <input type="text" id="payment-reference" placeholder="e.g. CHK-4491 or AUTH-99234">
+          </div>
+
+          <div class="form-group">
+            <label for="payment-notes">Payment Notes</label>
+            <textarea id="payment-notes" rows="2" placeholder="e.g. Paid in full on completion."></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="payment-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary" id="payment-save-btn">
+              <i class="fa-solid fa-check"></i> Record &amp; Update Invoice
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       PRINTABLE / PDF INVOICE VIEW MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="invoice-view-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-view-modal-title" aria-hidden="true">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 id="invoice-view-modal-title">Invoice Preview</h2>
+        <div class="modal-header-actions">
+          <button class="btn-secondary btn-sm" id="btn-print-invoice-doc">
+            <i class="fa-solid fa-print"></i> Print / Download PDF
+          </button>
+          <button class="modal-close" id="invoice-view-close-btn" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body" id="invoice-view-content">
         <!-- Rendered by JS -->
       </div>
     </div>

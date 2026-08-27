@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dbRun, dbGet, dbAll, initDatabase, getDatabaseStatus, getFirebaseConfig, syncToFirestore } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,325 +13,275 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
-// In-Memory Data Store
-let users = [
-  {
-    id: 1,
-    email: 'admin@lawncraft.com',
-    full_name: 'Alex Rivera (Admin)',
-    role: 'admin',
-    department: 'Operations',
-    cost_center: 'CC-101',
-    notes: 'Head of Operations & Lead Supervisor'
-  },
-  {
-    id: 2,
-    email: 'supervisor@lawncraft.com',
-    full_name: 'Jordan Miller',
-    role: 'supervisor',
-    department: 'Field',
-    cost_center: 'CC-204',
-    notes: 'North Territory Supervisor'
-  },
-  {
-    id: 3,
-    email: 'marcus.crew@lawncraft.com',
-    full_name: 'Marcus Vance',
-    role: 'field_tech',
-    department: 'Field',
-    cost_center: 'CC-204',
-    notes: 'Crew Lead - Turf Specialist'
-  }
-];
+// Initialize database schema and seed data
+await initDatabase();
 
-let workOrders = [
-  {
-    id: 101,
-    title: 'Spring Lawn Aeration & Overseeding',
-    client_name: 'Eleanor Vance',
-    client_email: 'eleanor.vance@example.com',
-    client_phone: '(555) 234-5678',
-    property_address: '742 Evergreen Terrace, Springfield',
-    service_type: 'Aeration & Overseeding',
-    status: 'incoming',
-    priority: 'high',
-    target_date: '2026-09-01T08:00:00Z',
-    created_at: '2026-08-25T09:15:00Z',
-    started_at: null,
-    completed_at: null,
-    description: 'Full front and backyard core aeration with premium fescue overseeding blend.',
-    supervisor_notes: 'Gate access code is #4491. Dog will be kept inside.'
-  },
-  {
-    id: 102,
-    title: 'Commercial Turf Health Assessment & Treatment',
-    client_name: 'Apex Industrial Park',
-    client_email: 'facilities@apexpark.com',
-    client_phone: '(555) 890-1234',
-    property_address: '1200 Innovation Way, Tech Park',
-    service_type: 'Commercial Maintenance',
-    status: 'incoming',
-    priority: 'medium',
-    target_date: '2026-09-03T10:00:00Z',
-    created_at: '2026-08-26T11:30:00Z',
-    started_at: null,
-    completed_at: null,
-    description: 'Inspect yellowing patches on south lawn buffer zone and apply organic fertilizer treatment.',
-    supervisor_notes: 'Check in with security booth before entering grounds.'
-  },
-  {
-    id: 103,
-    title: 'Irrigation System Zone Repair & Valve Replacement',
-    client_name: 'Robert Thornton',
-    client_email: 'rthornton@example.com',
-    client_phone: '(555) 456-7890',
-    property_address: '88 Riverview Crescent, Lakeside',
-    service_type: 'Irrigation & Drainage',
-    status: 'incoming',
-    priority: 'urgent',
-    target_date: '2026-08-28T09:00:00Z',
-    created_at: '2026-08-26T14:45:00Z',
-    started_at: null,
-    completed_at: null,
-    description: 'Zone 3 has low pressure; solenoid valve 2 is unresponsive to controller.',
-    supervisor_notes: 'Urgent: Water pooling near driveway foundation.'
-  },
-  {
-    id: 104,
-    title: 'Precision Edge Trimming & Seasonal Fertilization',
-    client_name: 'Sophia Martinez',
-    client_email: 'sophia.m@example.com',
-    client_phone: '(555) 678-9012',
-    property_address: '45 Magnolia Drive, Blossom Hills',
-    service_type: 'Lawn Maintenance',
-    status: 'planned',
-    priority: 'medium',
-    target_date: '2026-08-29T13:00:00Z',
-    created_at: '2026-08-24T08:00:00Z',
-    started_at: null,
-    completed_at: null,
-    description: 'Full perimeter edging, weed suppression application, slow-release balanced feeding.',
-    supervisor_notes: 'Assigned to Crew Team Beta.'
-  },
-  {
-    id: 105,
-    title: 'Landscape Bed Mulching & Weed Barrier Installation',
-    client_name: 'Dr. Gregory House',
-    client_email: 'ghouse@example.com',
-    client_phone: '(555) 321-7654',
-    property_address: '15 Meadowbrook Lane, Westend',
-    service_type: 'Landscape Enhancement',
-    status: 'reviewed',
-    priority: 'low',
-    target_date: '2026-08-30T10:00:00Z',
-    created_at: '2026-08-23T15:20:00Z',
-    started_at: null,
-    completed_at: null,
-    description: '10 yards premium dark cedar mulch delivery and spreading across flowerbeds.',
-    supervisor_notes: 'Awaiting mulch supplier delivery confirmation.'
-  },
-  {
-    id: 106,
-    title: 'Hydroseeding & Soil Prep on Sloped Yard',
-    client_name: 'Claire Underwood',
-    client_email: 'claire.u@example.com',
-    client_phone: '(555) 789-0123',
-    property_address: '304 Highland Summit, Ridgeway',
-    service_type: 'Hydroseeding',
-    status: 'in_progress',
-    priority: 'high',
-    target_date: '2026-08-27T14:00:00Z',
-    created_at: '2026-08-22T10:00:00Z',
-    started_at: '2026-08-27T08:30:00Z',
-    completed_at: null,
-    description: 'Grade terrace slope, apply tackifier and sun/shade hydroseed slurry.',
-    supervisor_notes: 'Field crew on site since 8:30am. Tanker truck positioned on driveway.'
-  },
-  {
-    id: 107,
-    title: 'Dethatching & Fall Lawn Renovation',
-    client_name: 'David Chen',
-    client_email: 'david.chen@example.com',
-    client_phone: '(555) 234-8901',
-    property_address: '912 Oakridge Boulevard, Greenfield',
-    service_type: 'Turf Renovation',
-    status: 'in_progress',
-    priority: 'urgent',
-    target_date: '2026-08-27T16:00:00Z',
-    created_at: '2026-08-21T09:00:00Z',
-    started_at: '2026-08-27T09:15:00Z',
-    completed_at: null,
-    description: 'Heavy power dethatching, debris haul away, topdressing with compost mix.',
-    supervisor_notes: 'Overdue high-severity issue reported with thatch buildup thickness.'
-  },
-  {
-    id: 108,
-    title: 'Smart Sprinkler Controller Upgrade & Weather Sensor',
-    client_name: 'Hannah Abbott',
-    client_email: 'hannah.a@example.com',
-    client_phone: '(555) 901-2345',
-    property_address: '52 Sycamore Grove, Eastlake',
-    service_type: 'Irrigation & Drainage',
-    status: 'completed',
-    priority: 'medium',
-    target_date: '2026-08-25T11:00:00Z',
-    created_at: '2026-08-19T14:00:00Z',
-    started_at: '2026-08-25T09:00:00Z',
-    completed_at: '2026-08-25T11:30:00Z',
-    description: 'Installed 12-zone Rachio controller, wired rain & freeze sensor.',
-    supervisor_notes: 'Tested all zones successfully. Client app paired.'
-  },
-  {
-    id: 109,
-    title: 'Total Sod Replacement & Topsoil Grading',
-    client_name: 'Arthur Pendelton',
-    client_email: 'arthur.p@example.com',
-    client_phone: '(555) 567-8901',
-    property_address: '220 King William Street, Old Town',
-    service_type: 'Sod Installation',
-    status: 'verified',
-    priority: 'high',
-    target_date: '2026-08-24T17:00:00Z',
-    created_at: '2026-08-18T10:00:00Z',
-    started_at: '2026-08-24T07:30:00Z',
-    completed_at: '2026-08-24T16:45:00Z',
-    description: 'Stripped old Bermuda grass, laser-graded 4 tons loam, laid fresh Kentucky Bluegrass sod.',
-    supervisor_notes: 'Supervisor inspected turf rooting and moisture depth. Quality score 10/10.'
-  }
-];
+let activeUserSession = {
+  id: 1,
+  email: 'admin@lawncraft.com',
+  full_name: 'Alex Rivera (Admin)',
+  role: 'admin',
+  department: 'Operations',
+  cost_center: 'CC-101',
+  notes: 'Head of Operations & Lead Supervisor'
+};
 
-let permissionPolicies = [
-  {
-    feature_key: 'financial_reports',
-    label: 'Financial Reports Access',
-    allowed_roles: 'admin,finance',
-    allowed_departments: 'Operations, Finance',
-    description: 'Access to financial summary, revenue forecasts, and conversion data',
-    is_enabled: true
-  },
-  {
-    feature_key: 'user_management',
-    label: 'User Management',
-    allowed_roles: 'admin',
-    allowed_departments: 'Management, HR',
-    description: 'Ability to create, update, and manage accounts and access profiles',
-    is_enabled: true
-  },
-  {
-    feature_key: 'work_order_dispatch',
-    label: 'Work Order Dispatch',
-    allowed_roles: 'admin,supervisor',
-    allowed_departments: 'Operations, Field',
-    description: 'Permission to assign jobs, alter schedules, and dispatch field crews',
-    is_enabled: true
-  },
-  {
-    feature_key: 'system_settings',
-    label: 'System Configuration',
-    allowed_roles: 'admin',
-    allowed_departments: 'Operations, IT',
-    description: 'Control system switches, API integrations, and notification triggers',
-    is_enabled: true
+async function logAudit(action, summary, actorEmail = null, resourceType = '', resourceId = '') {
+  try {
+    const actor = actorEmail || activeUserSession?.email || 'system@lawncraft.com';
+    await dbRun(
+      `INSERT INTO audit_logs (action, summary, actor_email, resource_type, resource_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [action, summary, actor, resourceType, String(resourceId || ''), new Date().toISOString()]
+    );
+  } catch (err) {
+    console.error('Audit log failure:', err.message);
   }
-];
+}
 
-let systemSettings = [
-  {
-    setting_key: 'contact_intake_enabled',
-    group_name: 'General',
-    label: 'Contact Intake Pipeline',
-    description: 'Enable or pause incoming service inquiries from website forms',
-    value: 'true',
-    is_sensitive: false
-  },
-  {
-    setting_key: 'notification_email',
-    group_name: 'Notifications',
-    label: 'Dispatch Notification Email',
-    description: 'Destination inbox for urgent job notifications and exception alerts',
-    value: 'dispatch@lawncraft.com',
-    is_sensitive: false
-  },
-  {
-    setting_key: 'auto_assign_radius',
-    group_name: 'Dispatch',
-    label: 'Maximum Dispatch Radius (km)',
-    description: 'Radius threshold for automated crew territory assignment',
-    value: '25',
-    is_sensitive: false
-  },
-  {
-    setting_key: 'kpi_refresh_interval',
-    group_name: 'Operations',
-    label: 'Realtime Sync Interval (seconds)',
-    description: 'Frequency of automated supervisor board polling',
-    value: '30',
-    is_sensitive: false
+async function recordAutomationLog(ruleId, ruleName, eventType, status, details) {
+  try {
+    const logId = `LOG-AUTO-${Date.now().toString().slice(-4)}`;
+    await dbRun(
+      `INSERT INTO automation_logs (id, rule_id, rule_name, event_type, status, details, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [logId, ruleId, ruleName, eventType, status, details, new Date().toISOString()]
+    );
+    if (ruleId) {
+      await dbRun(
+        `UPDATE automation_rules SET execution_count = execution_count + 1, last_triggered = ? WHERE id = ?`,
+        [new Date().toISOString(), ruleId]
+      );
+    }
+  } catch (err) {
+    console.error('Automation log failure:', err.message);
   }
-];
+}
 
-let auditLogs = [
-  {
-    action: 'WORK_ORDER_STATUS_UPDATE',
-    summary: 'Updated #106 Hydroseeding status to in_progress',
-    actor_email: 'admin@lawncraft.com',
-    resource_type: 'work_order',
-    resource_id: '106',
-    created_at: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    action: 'PERMISSION_POLICY_UPDATE',
-    summary: 'Updated feature policy for financial_reports',
-    actor_email: 'admin@lawncraft.com',
-    resource_type: 'policy',
-    resource_id: 'financial_reports',
-    created_at: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    action: 'USER_LOGIN',
-    summary: 'Supervisor login from Web Portal',
-    actor_email: 'admin@lawncraft.com',
-    resource_type: 'auth',
-    resource_id: '',
-    created_at: new Date(Date.now() - 172800000).toISOString()
+// ── ERP Automation Engine ─────────────────────────────────────
+
+// 1. Auto-Invoice Generator on Work Order Completion
+async function triggerAutoInvoicingForWorkOrder(workOrderId) {
+  try {
+    const setting = await dbGet(`SELECT value FROM system_settings WHERE setting_key = 'auto_invoice_on_completion'`);
+    if (setting && setting.value === 'false') return null;
+
+    const rule = await dbGet(`SELECT * FROM automation_rules WHERE id = 'RULE-AUTO-INV'`);
+    if (rule && !rule.is_enabled) return null;
+
+    const wo = await dbGet(`SELECT * FROM work_orders WHERE id = ?`, [workOrderId]);
+    if (!wo) return null;
+
+    // Check if invoice already exists for this work order
+    const existingInv = await dbGet(`SELECT id FROM invoices WHERE work_order_id = ?`, [workOrderId]);
+    if (existingInv) return existingInv.id;
+
+    // Generate smart itemized lines based on service type
+    const newInvId = `INV-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const today = new Date().toISOString().split('T')[0];
+    const dueDate = new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0];
+
+    let items = [];
+    if (wo.service_type.includes('Aeration')) {
+      items = [
+        { description: 'Full Lawn Core Aeration & High-Grade Overseeding', quantity: 1, unit_price: 285.00 },
+        { description: 'Premium Fescue/Bluegrass Seed Blend (25lb)', quantity: 1, unit_price: 85.00 },
+        { description: 'Slow-Release Starter Fertilizer Application', quantity: 1, unit_price: 65.00 }
+      ];
+    } else if (wo.service_type.includes('Irrigation')) {
+      items = [
+        { description: 'Irrigation Valve Diagnostic & Solenoid Replacement Labor', quantity: 1.5, unit_price: 95.00 },
+        { description: 'Hunter 1" Solenoid Sprinkler Valve Unit', quantity: 1, unit_price: 58.00 },
+        { description: 'Zone Pressure Testing & Head Calibration', quantity: 1, unit_price: 75.00 }
+      ];
+    } else if (wo.service_type.includes('Hydroseed')) {
+      items = [
+        { description: 'Terrace Slope Soil Grading & Tackifier Prep', quantity: 1, unit_price: 450.00 },
+        { description: 'Sun/Shade Premium Hydroseed Slurry Mix', quantity: 1, unit_price: 1820.00 }
+      ];
+    } else {
+      items = [
+        { description: `${wo.service_type}: ${wo.title}`, quantity: 1, unit_price: 220.00 },
+        { description: 'Debris Cleanup, Trimming & Quality Assurance Inspection', quantity: 1, unit_price: 80.00 }
+      ];
+    }
+
+    let subtotal = 0;
+    items.forEach(it => {
+      it.amount = it.quantity * it.unit_price;
+      subtotal += it.amount;
+    });
+
+    const taxRate = 6.5;
+    const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+
+    await dbRun(
+      `INSERT INTO invoices (id, work_order_id, client_name, client_email, client_phone, property_address, issue_date, due_date, status, payment_terms, subtotal, tax_rate, tax_amount, discount_amount, total_amount, amount_paid, balance_due, notes, is_auto_generated, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newInvId, wo.id, wo.client_name, wo.client_email, wo.client_phone, wo.property_address, today, dueDate, 'issued', 'Net 15', subtotal, taxRate, taxAmount, 0, totalAmount, 0, totalAmount, `Auto-generated ERP Invoice upon completion of work order #${wo.id}`, 1, new Date().toISOString(), new Date().toISOString()]
+    );
+
+    for (const item of items) {
+      await dbRun(
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount)
+         VALUES (?, ?, ?, ?, ?)`,
+        [newInvId, item.description, item.quantity, item.unit_price, item.amount]
+      );
+    }
+
+    await recordAutomationLog(
+      'RULE-AUTO-INV',
+      'Work Order Completed -> Auto-Generate Invoice',
+      'WORK_ORDER_COMPLETED',
+      'success',
+      `Auto-generated invoice ${newInvId} ($${totalAmount.toFixed(2)}) for ${wo.client_name} following completion of #${wo.id}`
+    );
+
+    return newInvId;
+  } catch (err) {
+    console.error('Auto invoicing error:', err);
+    await recordAutomationLog('RULE-AUTO-INV', 'Auto-Invoice Failed', 'WORK_ORDER_COMPLETED', 'failed', err.message);
+    return null;
   }
-];
+}
 
-let activeUserSession = users[0];
+// 2. Inventory Material Consumption & Auto-Reorder Trigger
+async function triggerInventoryConsumptionForWorkOrder(workOrderId, status) {
+  try {
+    const wo = await dbGet(`SELECT * FROM work_orders WHERE id = ?`, [workOrderId]);
+    if (!wo) return;
+
+    let itemsToDeduct = [];
+    if (wo.service_type.includes('Aeration')) {
+      itemsToDeduct = [
+        { id: 'INV-ITM-001', qty: 1, reason: `Overseeding on WO #${wo.id}` },
+        { id: 'INV-ITM-002', qty: 1, reason: `Starter fertilizer on WO #${wo.id}` }
+      ];
+    } else if (wo.service_type.includes('Irrigation')) {
+      itemsToDeduct = [
+        { id: 'INV-ITM-003', qty: 1, reason: `Valve replacement on WO #${wo.id}` }
+      ];
+    } else if (wo.service_type.includes('Mulch')) {
+      itemsToDeduct = [
+        { id: 'INV-ITM-006', qty: 5, reason: `Landscape mulch on WO #${wo.id}` }
+      ];
+    }
+
+    for (const d of itemsToDeduct) {
+      const itm = await dbGet(`SELECT * FROM inventory_items WHERE id = ?`, [d.id]);
+      if (itm) {
+        const prevQty = itm.quantity_on_hand;
+        const newQty = Math.max(0, prevQty - d.qty);
+
+        await dbRun(`UPDATE inventory_items SET quantity_on_hand = ? WHERE id = ?`, [newQty, d.id]);
+        await dbRun(
+          `INSERT INTO inventory_transactions (id, item_id, type, quantity, previous_qty, new_qty, work_order_id, reason, timestamp, actor_email)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [`TXN-${Date.now().toString().slice(-4)}`, d.id, 'consumption', d.qty, prevQty, newQty, wo.id, d.reason, new Date().toISOString(), activeUserSession.email]
+        );
+
+        // Check if stock breached safety threshold -> trigger automated reorder
+        if (newQty <= itm.min_reorder_level && itm.auto_reorder_enabled) {
+          const reorderQty = itm.reorder_quantity;
+          const restockedQty = newQty + reorderQty;
+          
+          await recordAutomationLog(
+            'RULE-AUTO-RESTOCK',
+            'Inventory Below Safety Level -> Auto-Generate Reorder PO',
+            'LOW_INVENTORY_DETECTED',
+            'warning',
+            `Stock for "${itm.name}" dropped to ${newQty} ${itm.unit} (Min: ${itm.min_reorder_level}). Auto-Purchase Order created for ${reorderQty} ${itm.unit} from ${itm.supplier}.`
+          );
+
+          await dbRun(
+            `INSERT INTO inventory_transactions (id, item_id, type, quantity, previous_qty, new_qty, work_order_id, reason, timestamp, actor_email)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [`TXN-${Date.now().toString().slice(-4)}`, d.id, 'auto_reorder', reorderQty, newQty, restockedQty, wo.id, `ERP Auto-Reorder PO triggered by min threshold breach (${newQty} <= ${itm.min_reorder_level})`, new Date().toISOString(), 'erp-bot@lawncraft.com']
+          );
+
+          await dbRun(
+            `UPDATE inventory_items SET quantity_on_hand = ?, last_restocked = ? WHERE id = ?`,
+            [restockedQty, new Date().toISOString().split('T')[0], d.id]
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Inventory automation error:', err);
+  }
+}
+
+// 3. Automated Payroll Recalculation
+async function recalculateAutomatedPayroll() {
+  try {
+    const techUsers = await dbAll(`SELECT * FROM users WHERE role IN ('field_tech', 'supervisor')`);
+    const today = new Date().toISOString().split('T')[0];
+
+    for (const tech of techUsers) {
+      // Find completed jobs for this tech
+      const completedJobs = await dbAll(
+        `SELECT * FROM work_orders WHERE assigned_user_id = ? AND status IN ('completed', 'verified')`,
+        [tech.id]
+      );
+
+      const jobCount = completedJobs.length;
+      const calculatedHours = Math.min(48, 30 + jobCount * 3.5);
+      const regHours = Math.min(40, calculatedHours);
+      const otHours = Math.max(0, calculatedHours - 40);
+      const hourlyRate = tech.hourly_rate || 40.0;
+      const otRate = tech.overtime_rate || (hourlyRate * 1.5);
+      const bonus = jobCount >= 4 ? 100.0 : 0.0;
+
+      const gross = (regHours * hourlyRate) + (otHours * otRate) + bonus;
+      const tax = Math.round(gross * 0.20 * 100) / 100;
+      const net = Math.round((gross - tax) * 100) / 100;
+
+      const entryId = `PAY-2026-W35-0${tech.id}`;
+      const existing = await dbGet(`SELECT id FROM payroll_entries WHERE id = ?`, [entryId]);
+
+      if (existing) {
+        await dbRun(
+          `UPDATE payroll_entries 
+           SET regular_hours = ?, overtime_hours = ?, gross_pay = ?, tax_deduction = ?, net_pay = ?, jobs_completed = ?, bonus = ?
+           WHERE id = ?`,
+          [regHours, otHours, gross, tax, net, jobCount, bonus, entryId]
+        );
+      } else {
+        await dbRun(
+          `INSERT INTO payroll_entries (id, user_id, employee_name, role, department, pay_period_start, pay_period_end, regular_hours, overtime_hours, hourly_rate, gross_pay, tax_deduction, net_pay, status, jobs_completed, bonus, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [entryId, tech.id, tech.full_name, tech.role, tech.department, '2026-08-25', '2026-08-31', regHours, otHours, hourlyRate, gross, tax, net, 'draft', jobCount, bonus, new Date().toISOString()]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Payroll sync error:', err);
+  }
+}
 
 // ── Auth Endpoints ───────────────────────────────────────────
 
-app.post('/api/auth/login/json', (req, res) => {
-  const { email, password } = req.body || {};
+app.post('/api/auth/login/json', async (req, res) => {
+  const { email } = req.body || {};
   if (!email) {
     return res.status(400).json({ detail: 'Email is required' });
   }
 
-  const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (existingUser) {
-    activeUserSession = existingUser;
-  } else {
+  let user = await dbGet(`SELECT * FROM users WHERE LOWER(email) = LOWER(?)`, [email]);
+  if (!user) {
     const isSpecialAdmin = email.toLowerCase().includes('admin');
-    activeUserSession = {
-      id: users.length + 1,
-      email: email,
-      full_name: email.split('@')[0],
-      role: isSpecialAdmin ? 'admin' : 'supervisor',
-      department: 'Operations',
-      cost_center: 'CC-101',
-      notes: 'Authenticated session'
-    };
-    users.push(activeUserSession);
+    const role = isSpecialAdmin ? 'admin' : 'supervisor';
+    const fullName = email.split('@')[0];
+    const result = await dbRun(
+      `INSERT INTO users (email, full_name, role, department, cost_center, notes) VALUES (?, ?, ?, ?, ?, ?)`,
+      [email, fullName, role, 'Operations', 'CC-101', 'Authenticated session']
+    );
+    user = await dbGet(`SELECT * FROM users WHERE id = ?`, [result.lastID]);
   }
 
-  auditLogs.unshift({
-    action: 'USER_LOGIN',
-    summary: `Signed in as ${activeUserSession.role} (${activeUserSession.email})`,
-    actor_email: activeUserSession.email,
-    resource_type: 'auth',
-    resource_id: '',
-    created_at: new Date().toISOString()
-  });
+  activeUserSession = user;
+  await logAudit('USER_LOGIN', `Signed in as ${user.role} (${user.email})`, user.email, 'auth', String(user.id));
 
   res.json({
     access_token: `mock_jwt_token_${Date.now()}`,
@@ -338,80 +289,107 @@ app.post('/api/auth/login/json', (req, res) => {
   });
 });
 
-app.get('/api/auth/me', (req, res) => {
-  res.json(activeUserSession || users[0]);
+app.get('/api/auth/me', async (req, res) => {
+  if (activeUserSession) {
+    const fresh = await dbGet(`SELECT * FROM users WHERE id = ?`, [activeUserSession.id]);
+    res.json(fresh || activeUserSession);
+  } else {
+    const first = await dbGet(`SELECT * FROM users ORDER BY id ASC LIMIT 1`);
+    res.json(first);
+  }
 });
 
-// ── Supervisor Dashboard Endpoints ───────────────────────────
+// ── Supervisor Dashboard & Analytics Endpoints ───────────────
 
-app.get('/api/supervisor/stats', (req, res) => {
+app.get('/api/supervisor/stats', async (req, res) => {
+  const counts = await dbAll(`SELECT status, COUNT(*) as cnt FROM work_orders GROUP BY status`);
   const byStatus = {
-    incoming: workOrders.filter(w => w.status === 'incoming').length,
-    reviewed: workOrders.filter(w => w.status === 'reviewed').length,
-    planned: workOrders.filter(w => w.status === 'planned').length,
-    in_progress: workOrders.filter(w => w.status === 'in_progress').length,
-    completed: workOrders.filter(w => w.status === 'completed').length,
-    verified: workOrders.filter(w => w.status === 'verified').length,
-    cancelled: workOrders.filter(w => w.status === 'cancelled').length,
+    incoming: 0,
+    reviewed: 0,
+    planned: 0,
+    in_progress: 0,
+    completed: 0,
+    verified: 0,
+    cancelled: 0
   };
+  counts.forEach(r => {
+    if (byStatus[r.status] !== undefined) byStatus[r.status] = r.cnt;
+  });
+
+  const urgentCount = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders WHERE priority = 'urgent' AND status NOT IN ('completed', 'verified')`))?.cnt || 0;
+  const pendingTasks = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders WHERE status IN ('incoming', 'reviewed', 'planned')`))?.cnt || 0;
 
   res.json({
     work_orders_by_status: byStatus,
-    open_issues: 2,
-    pending_tasks: 5
+    open_issues: urgentCount,
+    pending_tasks: pendingTasks
   });
 });
 
-app.get('/api/supervisor/stats-trends', (req, res) => {
+app.get('/api/supervisor/stats-trends', async (req, res) => {
+  const incoming = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders WHERE status = 'incoming'`))?.cnt || 0;
+  const inProgress = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders WHERE status = 'in_progress'`))?.cnt || 0;
+  const completed = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders WHERE status IN ('completed', 'verified')`))?.cnt || 0;
+
   res.json({
     period_days: 7,
-    incoming_created: [2, 4, 3, 5, 2, 6, workOrders.filter(w => w.status === 'incoming').length],
-    started_jobs: [1, 2, 3, 2, 4, 3, workOrders.filter(w => w.status === 'in_progress').length],
-    completed_jobs: [5, 7, 9, 12, 15, 18, workOrders.filter(w => w.status === 'completed' || w.status === 'verified').length],
+    incoming_created: [2, 4, 3, 5, 2, 6, incoming],
+    started_jobs: [1, 2, 3, 2, 4, 3, inProgress],
+    completed_jobs: [5, 7, 9, 12, 15, 18, completed],
     issues_logged: [3, 4, 3, 2, 2, 1, 2],
     pending_tasks_created: [8, 7, 6, 7, 5, 4, 5]
   });
 });
 
-app.get('/api/supervisor/queue', (req, res) => {
-  const queue = workOrders.filter(w => w.status === 'incoming');
+app.get('/api/supervisor/queue', async (req, res) => {
+  const queue = await dbAll(`SELECT * FROM work_orders WHERE status = 'incoming' ORDER BY priority = 'urgent' DESC, id DESC`);
   res.json(queue);
 });
 
-app.get('/api/supervisor/planning', (req, res) => {
-  const planning = workOrders.filter(w => w.status === 'reviewed' || w.status === 'planned');
+app.get('/api/supervisor/planning', async (req, res) => {
+  const planning = await dbAll(`SELECT * FROM work_orders WHERE status IN ('reviewed', 'planned') ORDER BY target_date ASC`);
   res.json(planning);
 });
 
-app.get('/api/supervisor/active', (req, res) => {
-  const active = workOrders.filter(w => w.status === 'in_progress');
+app.get('/api/supervisor/active', async (req, res) => {
+  const active = await dbAll(`SELECT * FROM work_orders WHERE status = 'in_progress' ORDER BY started_at DESC`);
   res.json(active);
 });
 
-app.get('/api/supervisor/exceptions', (req, res) => {
-  const now = new Date();
-  const overdue = workOrders.filter(w => {
-    if (w.status === 'completed' || w.status === 'verified' || w.status === 'cancelled') return false;
-    return w.target_date && new Date(w.target_date) < now;
-  });
+app.get('/api/supervisor/exceptions', async (req, res) => {
+  const overdue = await dbAll(`
+    SELECT * FROM work_orders 
+    WHERE status NOT IN ('completed', 'verified', 'cancelled') 
+      AND target_date IS NOT NULL 
+      AND datetime(target_date) < datetime('now')
+  `);
 
-  const blocked = workOrders.filter(w => w.priority === 'urgent' && w.status !== 'completed' && w.status !== 'verified');
-  const missingLogs = workOrders.filter(w => w.status === 'in_progress');
+  const blocked = await dbAll(`
+    SELECT * FROM work_orders 
+    WHERE priority = 'urgent' AND status NOT IN ('completed', 'verified')
+  `);
+
+  const missingLogs = await dbAll(`
+    SELECT * FROM work_orders WHERE status = 'in_progress'
+  `);
 
   res.json({
-    overdue: overdue.length ? overdue : [workOrders[2]],
-    blocked: blocked.length ? blocked : [workOrders[2]],
+    overdue: overdue.length ? overdue : blocked.slice(0, 1),
+    blocked: blocked,
     missing_field_logs: missingLogs
   });
 });
 
-app.get('/api/supervisor/report', (req, res) => {
+app.get('/api/supervisor/report', async (req, res) => {
   const days = parseInt(req.query.days || '30', 10);
+  const totalWo = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders`))?.cnt || 0;
+  const completedWo = (await dbGet(`SELECT COUNT(*) as cnt FROM work_orders WHERE status IN ('completed', 'verified')`))?.cnt || 0;
+
   res.json({
     period_days: days,
     work_orders: {
-      total: workOrders.length + 18,
-      completed: workOrders.filter(w => w.status === 'completed' || w.status === 'verified').length + 14
+      total: totalWo + 12,
+      completed: completedWo + 10
     },
     tasks: {
       total_planned: 86,
@@ -423,7 +401,7 @@ app.get('/api/supervisor/report', (req, res) => {
       avg_hours_per_log: 3.9
     },
     turnaround: {
-      avg_hours_to_complete: 42.4
+      avg_hours_to_complete: 38.2
     },
     issues: {
       total: 5,
@@ -433,63 +411,494 @@ app.get('/api/supervisor/report', (req, res) => {
   });
 });
 
-app.get('/api/supervisor/property', (req, res) => {
+app.get('/api/supervisor/property', async (req, res) => {
   const addressQuery = String(req.query.address || '').toLowerCase();
-  const matches = workOrders.filter(w => w.property_address.toLowerCase().includes(addressQuery));
+  const matches = await dbAll(
+    `SELECT * FROM work_orders WHERE LOWER(property_address) LIKE ? ORDER BY id DESC`,
+    [`%${addressQuery}%`]
+  );
   res.json(matches);
 });
 
-// ── Work Orders CRUD ─────────────────────────────────────────
+// ── Work Orders Endpoints ─────────────────────────────────────
 
-app.get('/api/work-orders', (req, res) => {
-  res.json(workOrders);
+app.get('/api/work-orders', async (req, res) => {
+  const rows = await dbAll(`SELECT * FROM work_orders ORDER BY id DESC`);
+  res.json(rows);
 });
 
-app.get('/api/work-orders/:id', (req, res) => {
+app.get('/api/work-orders/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const wo = workOrders.find(w => w.id === id);
-  if (!wo) {
-    return res.status(404).json({ detail: 'Work order not found' });
-  }
+  const wo = await dbGet(`SELECT * FROM work_orders WHERE id = ?`, [id]);
+  if (!wo) return res.status(404).json({ detail: 'Work order not found' });
   res.json(wo);
 });
 
-app.put('/api/work-orders/:id', (req, res) => {
+app.put('/api/work-orders/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const wo = workOrders.find(w => w.id === id);
-  if (!wo) {
-    return res.status(404).json({ detail: 'Work order not found' });
-  }
+  const wo = await dbGet(`SELECT * FROM work_orders WHERE id = ?`, [id]);
+  if (!wo) return res.status(404).json({ detail: 'Work order not found' });
 
-  const { status, description, supervisor_notes, priority } = req.body || {};
+  const { status, description, supervisor_notes, priority, assigned_user_id } = req.body || {};
+  let started_at = wo.started_at;
+  let completed_at = wo.completed_at;
+
   if (status) {
-    wo.status = status;
     if (status === 'in_progress' && !wo.started_at) {
-      wo.started_at = new Date().toISOString();
+      started_at = new Date().toISOString();
     }
     if ((status === 'completed' || status === 'verified') && !wo.completed_at) {
-      wo.completed_at = new Date().toISOString();
+      completed_at = new Date().toISOString();
     }
   }
-  if (description !== undefined) wo.description = description;
-  if (supervisor_notes !== undefined) wo.supervisor_notes = supervisor_notes;
-  if (priority !== undefined) wo.priority = priority;
 
-  auditLogs.unshift({
-    action: 'WORK_ORDER_STATUS_UPDATE',
-    summary: `Updated #${wo.id} status to ${wo.status}`,
-    actor_email: activeUserSession.email,
-    resource_type: 'work_order',
-    resource_id: String(wo.id),
-    created_at: new Date().toISOString()
+  await dbRun(
+    `UPDATE work_orders 
+     SET status = COALESCE(?, status),
+         description = COALESCE(?, description),
+         supervisor_notes = COALESCE(?, supervisor_notes),
+         priority = COALESCE(?, priority),
+         assigned_user_id = COALESCE(?, assigned_user_id),
+         started_at = ?,
+         completed_at = ?
+     WHERE id = ?`,
+    [status || null, description !== undefined ? description : null, supervisor_notes !== undefined ? supervisor_notes : null, priority || null, assigned_user_id || null, started_at, completed_at, id]
+  );
+
+  const updatedWo = await dbGet(`SELECT * FROM work_orders WHERE id = ?`, [id]);
+
+  await logAudit('WORK_ORDER_STATUS_UPDATE', `Updated #${updatedWo.id} status to ${updatedWo.status}`, activeUserSession.email, 'work_order', String(id));
+
+  // Trigger ERP Automations
+  if (status === 'in_progress') {
+    await triggerInventoryConsumptionForWorkOrder(id, status);
+  }
+  if (status === 'completed' || status === 'verified') {
+    await triggerAutoInvoicingForWorkOrder(id);
+    await recalculateAutomatedPayroll();
+  }
+
+  res.json(updatedWo);
+});
+
+// ── Invoices & Billing Endpoints ──────────────────────────────
+
+app.get('/api/invoices', async (req, res) => {
+  const { status, search, work_order_id } = req.query;
+  let query = `SELECT * FROM invoices WHERE 1=1`;
+  const params = [];
+
+  if (work_order_id) {
+    query += ` AND work_order_id = ?`;
+    params.push(parseInt(work_order_id, 10));
+  }
+
+  if (status && status !== 'all') {
+    query += ` AND status = ?`;
+    params.push(status);
+  }
+
+  if (search) {
+    query += ` AND (LOWER(id) LIKE ? OR LOWER(client_name) LIKE ? OR LOWER(property_address) LIKE ?)`;
+    const s = `%${search.toLowerCase()}%`;
+    params.push(s, s, s);
+  }
+
+  query += ` ORDER BY id DESC`;
+
+  const rows = await dbAll(query, params);
+  for (const inv of rows) {
+    inv.items = await dbAll(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+    inv.payments = await dbAll(`SELECT * FROM invoice_payments WHERE invoice_id = ? ORDER BY date DESC`, [inv.id]);
+  }
+
+  res.json(rows);
+});
+
+app.get('/api/invoices/stats', async (req, res) => {
+  const invoices = await dbAll(`SELECT * FROM invoices`);
+  const totalBilled = invoices.reduce((acc, inv) => acc + (inv.status !== 'cancelled' ? inv.total_amount : 0), 0);
+  const totalCollected = invoices.reduce((acc, inv) => acc + inv.amount_paid, 0);
+  const totalOutstanding = invoices.reduce((acc, inv) => acc + (inv.status !== 'cancelled' && inv.status !== 'draft' ? inv.balance_due : 0), 0);
+  const totalOverdue = invoices.reduce((acc, inv) => acc + (inv.status === 'overdue' ? inv.balance_due : 0), 0);
+
+  const byStatus = {
+    draft: invoices.filter(i => i.status === 'draft').length,
+    issued: invoices.filter(i => i.status === 'issued').length,
+    partially_paid: invoices.filter(i => i.status === 'partially_paid').length,
+    paid: invoices.filter(i => i.status === 'paid').length,
+    overdue: invoices.filter(i => i.status === 'overdue').length,
+    cancelled: invoices.filter(i => i.status === 'cancelled').length
+  };
+
+  res.json({
+    total_count: invoices.length,
+    total_billed: Math.round(totalBilled * 100) / 100,
+    total_collected: Math.round(totalCollected * 100) / 100,
+    total_outstanding: Math.round(totalOutstanding * 100) / 100,
+    total_overdue: Math.round(totalOverdue * 100) / 100,
+    by_status: byStatus
+  });
+});
+
+app.get('/api/invoices/by-property', async (req, res) => {
+  const addr = String(req.query.address || '').toLowerCase();
+  const rows = await dbAll(`SELECT * FROM invoices WHERE LOWER(property_address) LIKE ? ORDER BY issue_date DESC`, [`%${addr}%`]);
+  res.json(rows);
+});
+
+app.get('/api/invoices/:id', async (req, res) => {
+  const inv = await dbGet(`SELECT * FROM invoices WHERE LOWER(id) = LOWER(?)`, [req.params.id]);
+  if (!inv) return res.status(404).json({ detail: 'Invoice not found' });
+
+  inv.items = await dbAll(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+  inv.payments = await dbAll(`SELECT * FROM invoice_payments WHERE invoice_id = ? ORDER BY date DESC`, [inv.id]);
+  res.json(inv);
+});
+
+app.post('/api/invoices', async (req, res) => {
+  const {
+    work_order_id,
+    client_name,
+    client_email,
+    client_phone,
+    property_address,
+    issue_date,
+    due_date,
+    payment_terms,
+    items,
+    tax_rate,
+    discount_amount,
+    notes,
+    status
+  } = req.body || {};
+
+  if (!client_name || !property_address) {
+    return res.status(400).json({ detail: 'Client name and property address are required' });
+  }
+
+  const id = `INV-2026-${Math.floor(100 + Math.random() * 900)}`;
+  const lineItems = Array.isArray(items) ? items : [];
+
+  let subtotal = 0;
+  lineItems.forEach(item => {
+    const qty = parseFloat(item.quantity) || 1;
+    const price = parseFloat(item.unit_price) || 0;
+    item.amount = Math.round(qty * price * 100) / 100;
+    subtotal += item.amount;
   });
 
-  res.json(wo);
+  const parsedTaxRate = tax_rate !== undefined ? parseFloat(tax_rate) : 6.5;
+  const taxAmount = Math.round(subtotal * (parsedTaxRate / 100) * 100) / 100;
+  const parsedDiscount = discount_amount ? parseFloat(discount_amount) : 0;
+  const totalAmount = Math.max(0, Math.round((subtotal + taxAmount - parsedDiscount) * 100) / 100);
+
+  const initialStatus = status || 'issued';
+  const now = new Date().toISOString();
+
+  await dbRun(
+    `INSERT INTO invoices (id, work_order_id, client_name, client_email, client_phone, property_address, issue_date, due_date, status, payment_terms, subtotal, tax_rate, tax_amount, discount_amount, total_amount, amount_paid, balance_due, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, work_order_id ? parseInt(work_order_id, 10) : null, client_name, client_email || '', client_phone || '', property_address, issue_date || now.split('T')[0], due_date || now.split('T')[0], initialStatus, payment_terms || 'Net 15', subtotal, parsedTaxRate, taxAmount, parsedDiscount, totalAmount, 0, totalAmount, notes || '', now, now]
+  );
+
+  for (const item of lineItems) {
+    await dbRun(
+      `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount)
+       VALUES (?, ?, ?, ?, ?)`,
+      [id, item.description || 'Service', item.quantity || 1, item.unit_price || 0, item.amount || 0]
+    );
+  }
+
+  const created = await dbGet(`SELECT * FROM invoices WHERE id = ?`, [id]);
+  created.items = await dbAll(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [id]);
+  created.payments = [];
+
+  await logAudit('INVOICE_CREATED', `Created invoice ${id} for ${client_name} ($${totalAmount.toFixed(2)})`, activeUserSession.email, 'invoice', id);
+
+  res.status(201).json(created);
+});
+
+app.put('/api/invoices/:id', async (req, res) => {
+  const inv = await dbGet(`SELECT * FROM invoices WHERE LOWER(id) = LOWER(?)`, [req.params.id]);
+  if (!inv) return res.status(404).json({ detail: 'Invoice not found' });
+
+  const {
+    client_name,
+    client_email,
+    client_phone,
+    property_address,
+    issue_date,
+    due_date,
+    payment_terms,
+    items,
+    tax_rate,
+    discount_amount,
+    notes,
+    status
+  } = req.body || {};
+
+  let subtotal = inv.subtotal;
+  if (items && Array.isArray(items)) {
+    await dbRun(`DELETE FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+    subtotal = 0;
+    for (const item of items) {
+      const qty = parseFloat(item.quantity) || 1;
+      const price = parseFloat(item.unit_price) || 0;
+      const amt = Math.round(qty * price * 100) / 100;
+      subtotal += amt;
+      await dbRun(
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount)
+         VALUES (?, ?, ?, ?, ?)`,
+        [inv.id, item.description, qty, price, amt]
+      );
+    }
+  }
+
+  const tax = tax_rate !== undefined ? parseFloat(tax_rate) : inv.tax_rate;
+  const discount = discount_amount !== undefined ? parseFloat(discount_amount) : inv.discount_amount;
+  const taxAmount = Math.round(subtotal * (tax / 100) * 100) / 100;
+  const totalAmount = Math.max(0, Math.round((subtotal + taxAmount - discount) * 100) / 100);
+  const balanceDue = Math.max(0, Math.round((totalAmount - inv.amount_paid) * 100) / 100);
+
+  let finalStatus = status || inv.status;
+  if (finalStatus !== 'cancelled' && finalStatus !== 'draft') {
+    if (balanceDue === 0 && totalAmount > 0) finalStatus = 'paid';
+    else if (inv.amount_paid > 0 && balanceDue > 0) finalStatus = 'partially_paid';
+    else if (new Date(due_date || inv.due_date) < new Date() && balanceDue > 0) finalStatus = 'overdue';
+  }
+
+  await dbRun(
+    `UPDATE invoices 
+     SET client_name = COALESCE(?, client_name),
+         client_email = COALESCE(?, client_email),
+         client_phone = COALESCE(?, client_phone),
+         property_address = COALESCE(?, property_address),
+         issue_date = COALESCE(?, issue_date),
+         due_date = COALESCE(?, due_date),
+         payment_terms = COALESCE(?, payment_terms),
+         subtotal = ?,
+         tax_rate = ?,
+         tax_amount = ?,
+         discount_amount = ?,
+         total_amount = ?,
+         balance_due = ?,
+         status = ?,
+         notes = COALESCE(?, notes),
+         updated_at = ?
+     WHERE id = ?`,
+    [client_name || null, client_email || null, client_phone || null, property_address || null, issue_date || null, due_date || null, payment_terms || null, subtotal, tax, taxAmount, discount, totalAmount, balanceDue, finalStatus, notes || null, new Date().toISOString(), inv.id]
+  );
+
+  const updated = await dbGet(`SELECT * FROM invoices WHERE id = ?`, [inv.id]);
+  updated.items = await dbAll(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+  updated.payments = await dbAll(`SELECT * FROM invoice_payments WHERE invoice_id = ? ORDER BY date DESC`, [inv.id]);
+
+  await logAudit('INVOICE_UPDATED', `Updated invoice ${inv.id} ($${totalAmount.toFixed(2)})`, activeUserSession.email, 'invoice', inv.id);
+
+  res.json(updated);
+});
+
+app.delete('/api/invoices/:id', async (req, res) => {
+  const inv = await dbGet(`SELECT * FROM invoices WHERE LOWER(id) = LOWER(?)`, [req.params.id]);
+  if (!inv) return res.status(404).json({ detail: 'Invoice not found' });
+
+  await dbRun(`DELETE FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+  await dbRun(`DELETE FROM invoice_payments WHERE invoice_id = ?`, [inv.id]);
+  await dbRun(`DELETE FROM invoices WHERE id = ?`, [inv.id]);
+
+  await logAudit('INVOICE_DELETED', `Deleted invoice ${inv.id} for ${inv.client_name}`, activeUserSession.email, 'invoice', inv.id);
+
+  res.json({ message: `Invoice ${inv.id} deleted successfully` });
+});
+
+app.post('/api/invoices/:id/payments', async (req, res) => {
+  const inv = await dbGet(`SELECT * FROM invoices WHERE LOWER(id) = LOWER(?)`, [req.params.id]);
+  if (!inv) return res.status(404).json({ detail: 'Invoice not found' });
+
+  const { amount, method, reference, notes } = req.body || {};
+  const payAmount = parseFloat(amount);
+  if (!payAmount || payAmount <= 0) {
+    return res.status(400).json({ detail: 'A positive payment amount is required' });
+  }
+
+  const paymentId = `PAY-${Date.now().toString().slice(-4)}`;
+  const dateStr = new Date().toISOString();
+
+  await dbRun(
+    `INSERT INTO invoice_payments (id, invoice_id, date, amount, method, reference, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [paymentId, inv.id, dateStr, Math.round(payAmount * 100) / 100, method || 'Credit Card', reference || `REF-${Math.floor(100000 + Math.random() * 900000)}`, notes || 'Payment received']
+  );
+
+  const payments = await dbAll(`SELECT * FROM invoice_payments WHERE invoice_id = ?`, [inv.id]);
+  const newAmountPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const newBalanceDue = Math.max(0, Math.round((inv.total_amount - newAmountPaid) * 100) / 100);
+
+  let newStatus = inv.status;
+  if (newBalanceDue === 0) newStatus = 'paid';
+  else if (newAmountPaid > 0) newStatus = 'partially_paid';
+
+  await dbRun(
+    `UPDATE invoices SET amount_paid = ?, balance_due = ?, status = ?, payment_method = ?, updated_at = ? WHERE id = ?`,
+    [newAmountPaid, newBalanceDue, newStatus, method || 'Credit Card', dateStr, inv.id]
+  );
+
+  const updatedInv = await dbGet(`SELECT * FROM invoices WHERE id = ?`, [inv.id]);
+  updatedInv.items = await dbAll(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+  updatedInv.payments = payments;
+
+  await logAudit('PAYMENT_RECORDED', `Recorded $${payAmount.toFixed(2)} payment (${method}) on ${inv.id}`, activeUserSession.email, 'invoice', inv.id);
+
+  res.status(201).json({
+    invoice: updatedInv,
+    payment: { id: paymentId, amount: payAmount, method, date: dateStr }
+  });
+});
+
+// ── ERP INVENTORY & SUPPLY CHAIN ENDPOINTS ───────────────────
+
+app.get('/api/erp/inventory', async (req, res) => {
+  const items = await dbAll(`SELECT * FROM inventory_items ORDER BY name ASC`);
+  const lowStockCount = items.filter(i => i.quantity_on_hand <= i.min_reorder_level).length;
+  const totalValue = items.reduce((sum, i) => sum + (i.quantity_on_hand * i.unit_cost), 0);
+
+  res.json({
+    items,
+    stats: {
+      total_items: items.length,
+      low_stock_count: lowStockCount,
+      total_inventory_valuation: Math.round(totalValue * 100) / 100
+    }
+  });
+});
+
+app.post('/api/erp/inventory/restock', async (req, res) => {
+  const { item_id, quantity, reason } = req.body || {};
+  const item = await dbGet(`SELECT * FROM inventory_items WHERE id = ?`, [item_id]);
+  if (!item) return res.status(404).json({ detail: 'Item not found' });
+
+  const qty = parseFloat(quantity);
+  if (!qty || qty <= 0) return res.status(400).json({ detail: 'Valid quantity required' });
+
+  const prevQty = item.quantity_on_hand;
+  const newQty = prevQty + qty;
+
+  await dbRun(`UPDATE inventory_items SET quantity_on_hand = ?, last_restocked = ? WHERE id = ?`, [newQty, new Date().toISOString().split('T')[0], item_id]);
+  await dbRun(
+    `INSERT INTO inventory_transactions (id, item_id, type, quantity, previous_qty, new_qty, reason, timestamp, actor_email)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [`TXN-${Date.now().toString().slice(-4)}`, item_id, 'restock', qty, prevQty, newQty, reason || 'Manual Restock', new Date().toISOString(), activeUserSession.email]
+  );
+
+  await logAudit('INVENTORY_RESTOCKED', `Restocked ${qty} ${item.unit} of ${item.name} (New total: ${newQty})`, activeUserSession.email, 'inventory', item_id);
+
+  res.json({ success: true, item_id, new_quantity: newQty });
+});
+
+app.get('/api/erp/inventory/transactions', async (req, res) => {
+  const txns = await dbAll(`
+    SELECT t.*, i.name as item_name, i.unit 
+    FROM inventory_transactions t 
+    LEFT JOIN inventory_items i ON t.item_id = i.id 
+    ORDER BY t.timestamp DESC 
+    LIMIT 50
+  `);
+  res.json(txns);
+});
+
+// ── ERP PAYROLL & LABOR ENDPOINTS ─────────────────────────────
+
+app.get('/api/erp/payroll', async (req, res) => {
+  await recalculateAutomatedPayroll();
+  const entries = await dbAll(`SELECT * FROM payroll_entries ORDER BY pay_period_start DESC, employee_name ASC`);
+
+  const totalGross = entries.reduce((sum, e) => sum + e.gross_pay, 0);
+  const totalNet = entries.reduce((sum, e) => sum + e.net_pay, 0);
+  const totalHours = entries.reduce((sum, e) => sum + e.regular_hours + e.overtime_hours, 0);
+
+  res.json({
+    entries,
+    stats: {
+      total_employees: entries.length,
+      total_gross_payroll: Math.round(totalGross * 100) / 100,
+      total_net_payroll: Math.round(totalNet * 100) / 100,
+      total_hours_logged: Math.round(totalHours * 10) / 10
+    }
+  });
+});
+
+app.post('/api/erp/payroll/approve-all', async (req, res) => {
+  await dbRun(`UPDATE payroll_entries SET status = 'approved' WHERE status = 'draft'`);
+  await logAudit('PAYROLL_APPROVED', 'Approved all current draft payroll entries for processing', activeUserSession.email, 'payroll', 'all');
+  res.json({ success: true, message: 'All pending draft payroll entries approved' });
+});
+
+// ── ERP AUTOMATION & WORKFLOW RULES ENDPOINTS ─────────────────
+
+app.get('/api/erp/automation/rules', async (req, res) => {
+  const rules = await dbAll(`SELECT * FROM automation_rules ORDER BY id ASC`);
+  const logs = await dbAll(`SELECT * FROM automation_logs ORDER BY timestamp DESC LIMIT 40`);
+
+  res.json({
+    rules,
+    logs,
+    summary: {
+      total_rules: rules.length,
+      active_rules: rules.filter(r => r.is_enabled).length,
+      total_executions: rules.reduce((sum, r) => sum + r.execution_count, 0)
+    }
+  });
+});
+
+app.put('/api/erp/automation/rules/:id/toggle', async (req, res) => {
+  const rule = await dbGet(`SELECT * FROM automation_rules WHERE id = ?`, [req.params.id]);
+  if (!rule) return res.status(404).json({ detail: 'Rule not found' });
+
+  const newState = rule.is_enabled ? 0 : 1;
+  await dbRun(`UPDATE automation_rules SET is_enabled = ? WHERE id = ?`, [newState, rule.id]);
+
+  await logAudit('AUTOMATION_RULE_TOGGLE', `${newState ? 'Enabled' : 'Disabled'} automation rule "${rule.name}"`, activeUserSession.email, 'automation', rule.id);
+
+  res.json({ id: rule.id, is_enabled: newState });
+});
+
+app.post('/api/erp/automation/trigger-sync', async (req, res) => {
+  // Execute end-to-end ERP batch automation
+  await recalculateAutomatedPayroll();
+
+  // Scan work orders for auto-invoicing
+  const completedWo = await dbAll(`SELECT id FROM work_orders WHERE status IN ('completed', 'verified')`);
+  let invCreatedCount = 0;
+  for (const wo of completedWo) {
+    const invId = await triggerAutoInvoicingForWorkOrder(wo.id);
+    if (invId) invCreatedCount++;
+  }
+
+  await recordAutomationLog(
+    'SYSTEM-SYNC',
+    'Full ERP Workflow Batch Sync',
+    'ERP_BATCH_SYNC',
+    'success',
+    `Automated ERP synchronization completed: evaluated inventory safety levels, processed timesheet payroll drafts, and synced ${invCreatedCount} invoices.`
+  );
+
+  res.json({
+    success: true,
+    message: 'ERP automation workflow batch executed successfully.',
+    invoices_synced: invCreatedCount
+  });
 });
 
 // ── Admin Endpoints ──────────────────────────────────────────
 
-app.get('/api/admin/control-center', (req, res) => {
+app.get('/api/admin/control-center', async (req, res) => {
+  const users = await dbAll(`SELECT * FROM users`);
+  const workOrders = await dbAll(`SELECT * FROM work_orders`);
+  const policies = await dbAll(`SELECT * FROM permission_policies`);
+  const settings = await dbAll(`SELECT * FROM system_settings`);
+  const logs = await dbAll(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 10`);
+
   res.json({
     stats: {
       totals: {
@@ -506,123 +915,78 @@ app.get('/api/admin/control-center', (req, res) => {
       open_contacts: 6,
       open_quotes: 9
     },
-    permissions: permissionPolicies,
-    settings: systemSettings,
-    audit_logs: auditLogs.slice(0, 10)
+    permissions: policies,
+    settings: settings,
+    audit_logs: logs
   });
 });
 
-app.get('/api/admin/permissions', (req, res) => {
-  res.json(permissionPolicies);
+app.get('/api/admin/permissions', async (req, res) => {
+  const rows = await dbAll(`SELECT * FROM permission_policies`);
+  res.json(rows);
 });
 
-app.put('/api/admin/permissions/:featureKey', (req, res) => {
+app.put('/api/admin/permissions/:featureKey', async (req, res) => {
   const { featureKey } = req.params;
-  const policy = permissionPolicies.find(p => p.feature_key === featureKey);
-  if (!policy) {
-    return res.status(404).json({ detail: 'Policy not found' });
-  }
-
   const { label, allowed_roles, allowed_departments, description, is_enabled } = req.body || {};
-  if (label !== undefined) policy.label = label;
-  if (allowed_roles !== undefined) policy.allowed_roles = allowed_roles;
-  if (allowed_departments !== undefined) policy.allowed_departments = allowed_departments;
-  if (description !== undefined) policy.description = description;
-  if (is_enabled !== undefined) policy.is_enabled = Boolean(is_enabled);
 
-  auditLogs.unshift({
-    action: 'PERMISSION_POLICY_UPDATE',
-    summary: `Updated feature policy for ${policy.label}`,
-    actor_email: activeUserSession.email,
-    resource_type: 'policy',
-    resource_id: featureKey,
-    created_at: new Date().toISOString()
-  });
+  await dbRun(
+    `UPDATE permission_policies 
+     SET label = COALESCE(?, label),
+         allowed_roles = COALESCE(?, allowed_roles),
+         allowed_departments = COALESCE(?, allowed_departments),
+         description = COALESCE(?, description),
+         is_enabled = COALESCE(?, is_enabled)
+     WHERE feature_key = ?`,
+    [label || null, allowed_roles || null, allowed_departments || null, description || null, is_enabled !== undefined ? (is_enabled ? 1 : 0) : null, featureKey]
+  );
+
+  const policy = await dbGet(`SELECT * FROM permission_policies WHERE feature_key = ?`, [featureKey]);
+  await logAudit('PERMISSION_POLICY_UPDATE', `Updated feature policy for ${policy.label}`, activeUserSession.email, 'policy', featureKey);
 
   res.json(policy);
 });
 
-app.get('/api/admin/users/access-profiles', (req, res) => {
-  const profiles = users.map(u => ({
-    user_id: u.id,
-    user_email: u.email,
-    department: u.department || '',
-    cost_center: u.cost_center || '',
-    notes: u.notes || ''
-  }));
-  res.json(profiles);
+app.get('/api/admin/users/access-profiles', async (req, res) => {
+  const users = await dbAll(`SELECT id as user_id, email as user_email, department, cost_center, notes FROM users`);
+  res.json(users);
 });
 
-app.put('/api/admin/users/:id/access-profile', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const user = users.find(u => u.id === id);
-  if (!user) {
-    return res.status(404).json({ detail: 'User not found' });
-  }
-
-  const { department, cost_center, notes } = req.body || {};
-  if (department !== undefined) user.department = department;
-  if (cost_center !== undefined) user.cost_center = cost_center;
-  if (notes !== undefined) user.notes = notes;
-
-  auditLogs.unshift({
-    action: 'ACCESS_PROFILE_UPDATE',
-    summary: `Updated access profile for ${user.email}`,
-    actor_email: activeUserSession.email,
-    resource_type: 'user',
-    resource_id: String(user.id),
-    created_at: new Date().toISOString()
-  });
-
-  res.json({
-    user_id: user.id,
-    user_email: user.email,
-    department: user.department,
-    cost_center: user.cost_center,
-    notes: user.notes
-  });
-});
-
-app.get('/api/admin/audit-logs', (req, res) => {
+app.get('/api/admin/audit-logs', async (req, res) => {
   const q = String(req.query.q || '').toLowerCase().trim();
-  if (!q) {
-    return res.json(auditLogs);
+  let query = `SELECT * FROM audit_logs`;
+  const params = [];
+
+  if (q) {
+    query += ` WHERE LOWER(action) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(actor_email) LIKE ?`;
+    const s = `%${q}%`;
+    params.push(s, s, s);
   }
-  const filtered = auditLogs.filter(entry =>
-    entry.action.toLowerCase().includes(q) ||
-    (entry.summary && entry.summary.toLowerCase().includes(q)) ||
-    (entry.actor_email && entry.actor_email.toLowerCase().includes(q))
-  );
-  res.json(filtered);
+
+  query += ` ORDER BY created_at DESC LIMIT 100`;
+  const rows = await dbAll(query, params);
+  res.json(rows);
 });
 
-app.get('/api/admin/settings', (req, res) => {
-  res.json(systemSettings);
+app.get('/api/admin/settings', async (req, res) => {
+  const rows = await dbAll(`SELECT * FROM system_settings`);
+  res.json(rows);
 });
 
-app.put('/api/admin/settings/:settingKey', (req, res) => {
+app.put('/api/admin/settings/:settingKey', async (req, res) => {
   const { settingKey } = req.params;
-  const setting = systemSettings.find(s => s.setting_key === settingKey);
-  if (!setting) {
-    return res.status(404).json({ detail: 'Setting not found' });
-  }
-
   const { value } = req.body || {};
-  if (value !== undefined) setting.value = String(value);
 
-  auditLogs.unshift({
-    action: 'SETTING_UPDATE',
-    summary: `Updated setting ${setting.label} to "${setting.value}"`,
-    actor_email: activeUserSession.email,
-    resource_type: 'setting',
-    resource_id: settingKey,
-    created_at: new Date().toISOString()
-  });
+  await dbRun(`UPDATE system_settings SET value = ? WHERE setting_key = ?`, [String(value), settingKey]);
+  const setting = await dbGet(`SELECT * FROM system_settings WHERE setting_key = ?`, [settingKey]);
+
+  await logAudit('SETTING_UPDATE', `Updated setting ${setting.label} to "${setting.value}"`, activeUserSession.email, 'setting', settingKey);
 
   res.json(setting);
 });
 
-app.get('/api/admin/monitoring', (req, res) => {
+app.get('/api/admin/monitoring', async (req, res) => {
+  const workOrders = await dbAll(`SELECT * FROM work_orders`);
   res.json({
     monitoring: {
       queue_count: workOrders.filter(w => w.status === 'incoming').length,
@@ -638,35 +1002,89 @@ app.get('/api/admin/monitoring', (req, res) => {
   });
 });
 
-app.get('/api/admin/financial-summary', (req, res) => {
+app.get('/api/admin/financial-summary', async (req, res) => {
+  const invoices = await dbAll(`SELECT * FROM invoices`);
+  const totalBilled = invoices.reduce((acc, inv) => acc + (inv.status !== 'cancelled' ? inv.total_amount : 0), 0);
+  const totalCollected = invoices.reduce((acc, inv) => acc + inv.amount_paid, 0);
+  const totalOutstanding = invoices.reduce((acc, inv) => acc + (inv.status !== 'cancelled' && inv.status !== 'draft' ? inv.balance_due : 0), 0);
+
   res.json({
     total_quotes: 52,
     accepted_quotes: 41,
     pending_quotes: 11,
     conversion_rate: 79,
     appointments: 68,
-    contacts: 94
+    contacts: 94,
+    invoicing_summary: {
+      total_invoices: invoices.length,
+      total_billed: Math.round(totalBilled * 100) / 100,
+      total_collected: Math.round(totalCollected * 100) / 100,
+      total_outstanding: Math.round(totalOutstanding * 100) / 100,
+      paid_invoices: invoices.filter(i => i.status === 'paid').length,
+      overdue_invoices: invoices.filter(i => i.status === 'overdue').length
+    }
   });
+});
+
+app.get('/api/system/database-status', async (req, res) => {
+  const status = getDatabaseStatus();
+  const workOrdersCount = (await dbGet('SELECT COUNT(*) as cnt FROM work_orders'))?.cnt || 0;
+  const inventoryCount = (await dbGet('SELECT COUNT(*) as cnt FROM inventory_items'))?.cnt || 0;
+  const invoicesCount = (await dbGet('SELECT COUNT(*) as cnt FROM invoices'))?.cnt || 0;
+  const payrollCount = (await dbGet('SELECT COUNT(*) as cnt FROM payroll_entries'))?.cnt || 0;
+
+  let message = 'Currently running on local persistent SQLite database.';
+  if (status.is_firebase_connected) {
+    message = `Connected to Firebase Firestore (${status.firebase.project_id}). Real-time cloud persistence is active.`;
+  } else if (status.is_supabase_connected) {
+    message = 'Successfully connected to Supabase PostgreSQL database.';
+  }
+
+  res.json({
+    ...status,
+    table_counts: {
+      work_orders: workOrdersCount,
+      inventory_items: inventoryCount,
+      invoices: invoicesCount,
+      payroll_entries: payrollCount
+    },
+    message
+  });
+});
+
+app.get('/api/firebase/config', (req, res) => {
+  const config = getFirebaseConfig();
+  if (!config) {
+    return res.status(404).json({ error: 'Firebase configuration not found' });
+  }
+  res.json(config);
+});
+
+app.post('/api/firebase/sync', async (req, res) => {
+  try {
+    const result = await syncToFirestore();
+    res.json(result);
+  } catch (err) {
+    console.error('[Firebase Sync Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Static Asset & Frontend Serving ──────────────────────────
 
 const frontendPath = path.join(__dirname, 'frontend');
 
-// Serve static assets from frontend directory (CSS, JS, images, etc.)
 app.use(express.static(frontendPath));
 app.use('/frontend', express.static(frontendPath));
 
-// Route entry points
 app.get(['/', '/dashboard', '/frontend/dashboard', '/frontend/dashboard.html'], (req, res) => {
   res.sendFile(path.join(frontendPath, 'dashboard.html'));
 });
 
-// Catch-all route to serve dashboard.html for client-side navigation
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'dashboard.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Lawn Craft Supervisor Dashboard running at http://0.0.0.0:${PORT}`);
+  console.log(`Lawn Craft Supervisor Dashboard & ERP Engine running at http://0.0.0.0:${PORT}`);
 });

@@ -1,6 +1,6 @@
 {
   "name": "Lawn Craft Supervisor Dashboard",
-  "description": "Supervisor and admin dashboard for managing work orders, field teams, KPI metrics, permissions, and service operations.",
+  "description": "Supervisor and admin dashboard for managing work orders, field teams, client invoicing and billing, ERP inventory tracking, automated payroll, workflow rules, KPI metrics, and operational database persistence.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

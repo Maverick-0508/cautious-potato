@@ -58,9 +58,13 @@ const VIEW_TITLES = {
   queue: 'Incoming Queue',
   planning: 'Planning Board',
   active: 'Active Jobs',
+  workorders: 'All Work Orders',
+  invoices: 'Client Invoices & Billing',
+  inventory: 'Inventory ERP & Supply Chain',
+  payroll: 'Automated Payroll & Timesheets',
+  automation: 'Workflow Automation & ERP Rules',
   exceptions: 'Exceptions',
   report: 'KPI Report',
-  workorders: 'All Work Orders',
   property: 'Property History',
   control: 'Control Center',
   permissions: 'Permissions',
@@ -499,6 +503,18 @@ async function loadView(viewId) {
     case 'workorders':
       await loadWorkOrderTable('workorders', '/work-orders');
       break;
+    case 'invoices':
+      await loadInvoices();
+      break;
+    case 'inventory':
+      await loadInventory();
+      break;
+    case 'payroll':
+      await loadPayroll();
+      break;
+    case 'automation':
+      await loadAutomationRules();
+      break;
     case 'property':
       // Property search – don't auto-load
       break;
@@ -849,25 +865,713 @@ async function searchProperty() {
 
   const tbody = document.getElementById('tbody-property');
   const countEl = document.getElementById('count-property');
+  const invTbody = document.getElementById('tbody-property-invoices');
+  const invCountEl = document.getElementById('count-property-invoices');
 
-  tbody.innerHTML = `<tr class="loading-row"><td colspan="7"><span class="spinner"></span> Searching…</td></tr>`;
+  tbody.innerHTML = `<tr class="loading-row"><td colspan="7"><span class="spinner"></span> Searching work orders…</td></tr>`;
+  if (invTbody) {
+    invTbody.innerHTML = `<tr class="loading-row"><td colspan="7"><span class="spinner"></span> Searching invoices…</td></tr>`;
+  }
 
   try {
-    const data = await apiFetch(`/supervisor/property?address=${encodeURIComponent(query)}`);
+    const [data, invoicesData] = await Promise.all([
+      apiFetch(`/supervisor/property?address=${encodeURIComponent(query)}`),
+      apiFetch(`/invoices/by-property?address=${encodeURIComponent(query)}`).catch(() => [])
+    ]);
     const items = Array.isArray(data) ? data : [];
+    const invItems = Array.isArray(invoicesData) ? invoicesData : [];
 
     if (countEl) countEl.textContent = `${items.length} record${items.length !== 1 ? 's' : ''}`;
 
     if (items.length === 0) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No work orders found for this address.</td></tr>`;
-      return;
+    } else {
+      tbody.innerHTML = items.map(wo => renderWorkOrderRow(wo)).join('');
     }
 
-    tbody.innerHTML = items.map(wo => renderWorkOrderRow(wo)).join('');
+    if (invTbody && invCountEl) {
+      invCountEl.textContent = `${invItems.length} invoice${invItems.length !== 1 ? 's' : ''}`;
+      if (invItems.length === 0) {
+        invTbody.innerHTML = `<tr class="empty-row"><td colspan="7">No invoices recorded for this property yet.</td></tr>`;
+      } else {
+        invTbody.innerHTML = invItems.map(inv => `
+          <tr>
+            <td>
+              <span class="td-link td-main" onclick="openInvoicePreview('${inv.id}')">${esc(inv.id)}</span>
+            </td>
+            <td>${inv.work_order_id ? `<span class="td-link" onclick="openWorkOrderDetail(${inv.work_order_id})">#${inv.work_order_id}</span>` : '—'}</td>
+            <td>${formatDate(inv.issue_date)}</td>
+            <td><strong>$${Number(inv.total_amount || 0).toFixed(2)}</strong></td>
+            <td style="color:${inv.balance_due > 0 ? 'var(--danger)' : 'inherit'}"><strong>$${Number(inv.balance_due || 0).toFixed(2)}</strong></td>
+            <td><span class="status-badge status-${inv.status}">${labelStatus(inv.status)}</span></td>
+            <td>
+              <button class="btn-subtle btn-sm" onclick="openInvoicePreview('${inv.id}')" title="View & Print"><i class="fa-solid fa-eye"></i></button>
+              ${inv.balance_due > 0 && inv.status !== 'cancelled' ? `<button class="btn-save btn-sm" onclick="openPaymentModal('${inv.id}')" title="Record Payment"><i class="fa-solid fa-dollar-sign"></i></button>` : ''}
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
     markDashboardSynced();
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="7"><div class="alert alert-danger">${err.message}</div></td></tr>`;
+    if (invTbody) {
+      invTbody.innerHTML = `<tr><td colspan="7"><div class="alert alert-danger">${err.message}</div></td></tr>`;
+    }
   }
+}
+
+// ─── Invoicing & Billing Controller ──────────────────────────────────────────
+
+async function loadInvoices() {
+  const tbody = document.getElementById('tbody-invoices');
+  const countEl = document.getElementById('count-invoices');
+  const statusFilter = document.getElementById('invoice-status-filter')?.value || 'all';
+  const searchInput = document.getElementById('invoice-search-input')?.value || '';
+
+  tbody.innerHTML = `<tr class="loading-row"><td colspan="10"><span class="spinner"></span> Loading client invoices…</td></tr>`;
+
+  try {
+    const [invoicesList, stats] = await Promise.all([
+      apiFetch(`/invoices?status=${encodeURIComponent(statusFilter)}&search=${encodeURIComponent(searchInput)}`),
+      apiFetch('/invoices/stats').catch(() => null)
+    ]);
+
+    // Update KPI Stat Cards
+    if (stats) {
+      const billedEl = document.getElementById('inv-stat-billed');
+      const collectedEl = document.getElementById('inv-stat-collected');
+      const outstandingEl = document.getElementById('inv-stat-outstanding');
+      const overdueEl = document.getElementById('inv-stat-overdue');
+      const badgeEl = document.getElementById('invoices-badge');
+
+      if (billedEl) billedEl.textContent = `$${Number(stats.total_billed || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (collectedEl) collectedEl.textContent = `$${Number(stats.total_collected || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (outstandingEl) outstandingEl.textContent = `$${Number(stats.total_outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (overdueEl) overdueEl.textContent = `$${Number(stats.total_overdue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      
+      if (badgeEl) {
+        const pendingCount = (stats.by_status?.overdue || 0) + (stats.by_status?.issued || 0) + (stats.by_status?.partially_paid || 0);
+        badgeEl.textContent = pendingCount;
+      }
+    }
+
+    const items = Array.isArray(invoicesList) ? invoicesList : [];
+    if (countEl) countEl.textContent = `${items.length} invoice${items.length !== 1 ? 's' : ''}`;
+
+    if (items.length === 0) {
+      tbody.innerHTML = `
+        <tr class="empty-row">
+          <td colspan="10">
+            No invoices found matching current filters. Click <strong>"+ Create New Invoice"</strong> to generate one.
+          </td>
+        </tr>`;
+      return;
+    }
+
+    tbody.innerHTML = items.map(inv => renderInvoiceRow(inv)).join('');
+    markDashboardSynced();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="alert alert-danger">${err.message}</div></td></tr>`;
+  }
+}
+
+function renderInvoiceRow(inv) {
+  const isOverdue = inv.status === 'overdue';
+  const balanceColor = inv.balance_due > 0 ? 'var(--danger)' : 'var(--success)';
+  const workOrderCell = inv.work_order_id
+    ? `<span class="td-link" onclick="openWorkOrderDetail(${inv.work_order_id})"><i class="fa-solid fa-link"></i> #${inv.work_order_id}</span>`
+    : '<span style="color:var(--text-light)">Standalone</span>';
+
+  return `
+    <tr>
+      <td>
+        <span class="td-link td-main" onclick="openInvoicePreview('${inv.id}')">${esc(inv.id)}</span>
+      </td>
+      <td>${workOrderCell}</td>
+      <td>
+        <div><strong>${esc(inv.client_name)}</strong></div>
+        ${inv.client_email ? `<div class="td-addr" style="font-size:0.8rem">${esc(inv.client_email)}</div>` : ''}
+      </td>
+      <td class="td-addr">${esc(inv.property_address)}</td>
+      <td>${formatDate(inv.issue_date)}</td>
+      <td style="${isOverdue ? 'color:var(--danger);font-weight:700;' : ''}">${formatDate(inv.due_date)}</td>
+      <td><strong>$${Number(inv.total_amount || 0).toFixed(2)}</strong></td>
+      <td style="color:${balanceColor}"><strong>$${Number(inv.balance_due || 0).toFixed(2)}</strong></td>
+      <td><span class="status-badge status-${inv.status}">${labelStatus(inv.status)}</span></td>
+      <td>
+        <div style="display:flex; gap: 4px; align-items:center;">
+          <button class="btn-subtle btn-sm" onclick="openInvoicePreview('${inv.id}')" title="Preview & Print Invoice">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+          ${inv.balance_due > 0 && inv.status !== 'cancelled' ? `
+            <button class="btn-save btn-sm" onclick="openPaymentModal('${inv.id}')" title="Record Client Payment">
+              <i class="fa-solid fa-dollar-sign"></i> Pay
+            </button>
+          ` : ''}
+          <button class="btn-subtle btn-sm" onclick="openInvoiceForm('${inv.id}')" title="Edit Invoice Details">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button class="btn-subtle btn-sm btn-icon-danger" onclick="deleteInvoice('${inv.id}')" title="Delete Invoice">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+// ─── Invoice Form Modal (Create / Edit) ───────────────────────────────────────
+
+let currentWorkOrdersList = [];
+
+async function openInvoiceForm(invoiceId = null, defaultWorkOrderId = null) {
+  const overlay = document.getElementById('invoice-form-modal');
+  const titleEl = document.getElementById('invoice-form-modal-title');
+  const editIdInput = document.getElementById('inv-edit-id');
+  const linkWoSelect = document.getElementById('inv-link-wo');
+  const form = document.getElementById('invoice-form');
+
+  form.reset();
+  editIdInput.value = invoiceId || '';
+
+  // Load available work orders for linking
+  try {
+    currentWorkOrdersList = await apiFetch('/work-orders');
+    linkWoSelect.innerHTML = '<option value="">-- Standalone Invoice (No Work Order) --</option>' +
+      currentWorkOrdersList.map(w => `<option value="${w.id}">#${w.id} - ${esc(w.client_name)} (${esc(w.title || w.service_type)})</option>`).join('');
+  } catch (e) {
+    console.error('Could not load work orders for invoice autofill', e);
+  }
+
+  const tbody = document.getElementById('line-items-tbody');
+  tbody.innerHTML = '';
+
+  if (invoiceId) {
+    // Editing existing invoice
+    titleEl.textContent = `Edit Invoice ${invoiceId}`;
+    try {
+      const inv = await apiFetch(`/invoices/${invoiceId}`);
+      if (inv.work_order_id) linkWoSelect.value = String(inv.work_order_id);
+      document.getElementById('inv-client-name').value = inv.client_name || '';
+      document.getElementById('inv-client-email').value = inv.client_email || '';
+      document.getElementById('inv-client-phone').value = inv.client_phone || '';
+      document.getElementById('inv-property-address').value = inv.property_address || '';
+      document.getElementById('inv-issue-date').value = inv.issue_date || '';
+      document.getElementById('inv-due-date').value = inv.due_date || '';
+      document.getElementById('inv-payment-terms').value = inv.payment_terms || 'Net 15';
+      document.getElementById('inv-status').value = inv.status || 'issued';
+      document.getElementById('inv-tax-rate').value = inv.tax_rate !== undefined ? inv.tax_rate : 6.5;
+      document.getElementById('inv-discount-amount').value = inv.discount_amount !== undefined ? inv.discount_amount : 0;
+      document.getElementById('inv-notes').value = inv.notes || '';
+
+      if (Array.isArray(inv.items) && inv.items.length > 0) {
+        inv.items.forEach(item => addLineItemRow(item.description, item.quantity, item.unit_price));
+      } else {
+        addLineItemRow('Lawn Mowing & Turf Maintenance', 1, 150.00);
+      }
+    } catch (err) {
+      showToast(`Failed to load invoice: ${err.message}`, 'error');
+      return;
+    }
+  } else {
+    // Creating new invoice
+    titleEl.textContent = 'Create Client Invoice';
+    const today = new Date().toISOString().split('T')[0];
+    const due15 = new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0];
+
+    document.getElementById('inv-issue-date').value = today;
+    document.getElementById('inv-due-date').value = due15;
+    document.getElementById('inv-payment-terms').value = 'Net 15';
+    document.getElementById('inv-status').value = 'issued';
+    document.getElementById('inv-tax-rate').value = '6.5';
+    document.getElementById('inv-discount-amount').value = '0.00';
+    document.getElementById('inv-notes').value = 'Thank you for choosing Lawn Craft! Please remit payment within specified terms.';
+
+    if (defaultWorkOrderId) {
+      linkWoSelect.value = String(defaultWorkOrderId);
+      autofillInvoiceFromWorkOrder(defaultWorkOrderId);
+    } else {
+      addLineItemRow('Lawn Mowing & Edge Trimming', 1, 120.00);
+      addLineItemRow('Aeration & Organic Fertilization', 1, 95.00);
+    }
+  }
+
+  calculateFormTotals();
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function autofillInvoiceFromWorkOrder(woId) {
+  const wo = currentWorkOrdersList.find(w => w.id === parseInt(woId, 10));
+  if (!wo) return;
+
+  document.getElementById('inv-client-name').value = wo.client_name || '';
+  document.getElementById('inv-client-email').value = wo.client_email || '';
+  document.getElementById('inv-client-phone').value = wo.client_phone || '';
+  document.getElementById('inv-property-address').value = wo.property_address || '';
+
+  const tbody = document.getElementById('line-items-tbody');
+  tbody.innerHTML = '';
+  const serviceDesc = `${wo.service_type || 'Landscape Service'}: ${wo.title || 'Property Maintenance'}`;
+  addLineItemRow(serviceDesc, 1, 185.00);
+  if (wo.description) {
+    addLineItemRow(`Additional work performed: ${wo.description.slice(0, 50)}...`, 1, 65.00);
+  }
+}
+
+function addLineItemRow(description = '', quantity = 1, unitPrice = 0) {
+  const tbody = document.getElementById('line-items-tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'line-item-row';
+
+  const numQty = parseFloat(quantity) || 1;
+  const numPrice = parseFloat(unitPrice) || 0;
+  const lineTotal = (numQty * numPrice).toFixed(2);
+
+  tr.innerHTML = `
+    <td>
+      <input type="text" class="item-desc" required placeholder="Service description or materials" value="${esc(description)}">
+    </td>
+    <td>
+      <input type="number" class="item-qty" min="0.1" step="0.5" value="${numQty}">
+    </td>
+    <td>
+      <input type="number" class="item-price" min="0" step="0.01" value="${numPrice.toFixed(2)}">
+    </td>
+    <td class="item-total-cell" style="font-weight:700;text-align:right;padding-right:10px;">
+      $${lineTotal}
+    </td>
+    <td>
+      <button type="button" class="btn-icon-danger remove-item-btn" title="Remove line item">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+    </td>
+  `;
+
+  const qtyInput = tr.querySelector('.item-qty');
+  const priceInput = tr.querySelector('.item-price');
+  const descInput = tr.querySelector('.item-desc');
+  const removeBtn = tr.querySelector('.remove-item-btn');
+
+  const onRowChange = () => {
+    const q = parseFloat(qtyInput.value) || 0;
+    const p = parseFloat(priceInput.value) || 0;
+    tr.querySelector('.item-total-cell').textContent = `$${(q * p).toFixed(2)}`;
+    calculateFormTotals();
+  };
+
+  qtyInput.addEventListener('input', onRowChange);
+  priceInput.addEventListener('input', onRowChange);
+  descInput.addEventListener('input', calculateFormTotals);
+
+  removeBtn.addEventListener('click', () => {
+    if (tbody.querySelectorAll('.line-item-row').length > 1) {
+      tr.remove();
+      calculateFormTotals();
+    } else {
+      showToast('Invoice must contain at least one line item.', 'error');
+    }
+  });
+
+  tbody.appendChild(tr);
+  calculateFormTotals();
+}
+
+function calculateFormTotals() {
+  const rows = document.querySelectorAll('#line-items-tbody .line-item-row');
+  let subtotal = 0;
+
+  rows.forEach(row => {
+    const qty = parseFloat(row.querySelector('.item-qty')?.value) || 0;
+    const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+    subtotal += (qty * price);
+  });
+
+  const taxRate = parseFloat(document.getElementById('inv-tax-rate')?.value) || 0;
+  const discount = parseFloat(document.getElementById('inv-discount-amount')?.value) || 0;
+
+  const taxAmount = (subtotal * taxRate) / 100;
+  const finalTotal = Math.max(0, subtotal + taxAmount - discount);
+
+  const subtotalEl = document.getElementById('calc-subtotal');
+  const taxEl = document.getElementById('calc-tax-amount');
+  const discountEl = document.getElementById('calc-discount-amount');
+  const totalEl = document.getElementById('calc-total');
+
+  if (subtotalEl) subtotalEl.textContent = `$${subtotal.toFixed(2)}`;
+  if (taxEl) taxEl.textContent = `+$${taxAmount.toFixed(2)}`;
+  if (discountEl) discountEl.textContent = `-$${discount.toFixed(2)}`;
+  if (totalEl) totalEl.textContent = `$${finalTotal.toFixed(2)}`;
+}
+
+async function saveInvoice(e) {
+  e.preventDefault();
+  const invoiceId = document.getElementById('inv-edit-id').value;
+  const linkWoVal = document.getElementById('inv-link-wo').value;
+  const clientName = document.getElementById('inv-client-name').value.trim();
+  const propertyAddress = document.getElementById('inv-property-address').value.trim();
+
+  if (!clientName || !propertyAddress) {
+    showToast('Please enter both client name and property address.', 'error');
+    return;
+  }
+
+  // Gather line items
+  const rows = document.querySelectorAll('#line-items-tbody .line-item-row');
+  const items = [];
+  rows.forEach(row => {
+    const desc = row.querySelector('.item-desc')?.value.trim();
+    const qty = parseFloat(row.querySelector('.item-qty')?.value) || 1;
+    const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+    if (desc) {
+      items.push({
+        description: desc,
+        quantity: qty,
+        unit_price: price,
+        amount: Math.round(qty * price * 100) / 100
+      });
+    }
+  });
+
+  if (items.length === 0) {
+    showToast('Please add at least one line item with a description.', 'error');
+    return;
+  }
+
+  const payload = {
+    work_order_id: linkWoVal ? parseInt(linkWoVal, 10) : null,
+    client_name: clientName,
+    client_email: document.getElementById('inv-client-email').value.trim(),
+    client_phone: document.getElementById('inv-client-phone').value.trim(),
+    property_address: propertyAddress,
+    issue_date: document.getElementById('inv-issue-date').value,
+    due_date: document.getElementById('inv-due-date').value,
+    payment_terms: document.getElementById('inv-payment-terms').value,
+    status: document.getElementById('inv-status').value,
+    tax_rate: parseFloat(document.getElementById('inv-tax-rate').value) || 0,
+    discount_amount: parseFloat(document.getElementById('inv-discount-amount').value) || 0,
+    notes: document.getElementById('inv-notes').value.trim(),
+    items: items
+  };
+
+  const saveBtn = document.getElementById('invoice-form-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner"></span> Saving…';
+
+  try {
+    if (invoiceId) {
+      await apiFetch(`/invoices/${invoiceId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      showToast(`Invoice ${invoiceId} updated successfully.`, 'success');
+    } else {
+      const created = await apiFetch('/invoices', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      showToast(`Invoice ${created.id} created successfully!`, 'success');
+    }
+
+    closeInvoiceFormModal();
+    if (currentView === 'invoices') {
+      await loadInvoices();
+    } else {
+      navigate('invoices');
+    }
+  } catch (err) {
+    showToast(`Failed to save invoice: ${err.message}`, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Invoice';
+  }
+}
+
+function closeInvoiceFormModal() {
+  const overlay = document.getElementById('invoice-form-modal');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+async function deleteInvoice(id) {
+  if (!confirm(`Are you sure you want to delete invoice ${id}? This action cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/invoices/${id}`, { method: 'DELETE' });
+    showToast(`Invoice ${id} deleted successfully.`, 'success');
+    await loadInvoices();
+  } catch (err) {
+    showToast(`Failed to delete invoice: ${err.message}`, 'error');
+  }
+}
+
+// ─── Payment Recording Modal ──────────────────────────────────────────────────
+
+async function openPaymentModal(invoiceId) {
+  const overlay = document.getElementById('payment-modal');
+  const summaryEl = document.getElementById('payment-invoice-summary');
+  const invIdInput = document.getElementById('payment-inv-id');
+  const amountInput = document.getElementById('payment-amount');
+  const form = document.getElementById('payment-form');
+
+  form.reset();
+  invIdInput.value = invoiceId;
+  summaryEl.innerHTML = '<div class="spinner"></div> Loading invoice summary…';
+
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+
+  try {
+    const inv = await apiFetch(`/invoices/${invoiceId}`);
+    summaryEl.innerHTML = `
+      <div>
+        <div class="sum-item-title">Invoice / Client</div>
+        <div class="sum-item-val">${esc(inv.id)}</div>
+        <div style="font-size:0.8rem;color:var(--text-light)">${esc(inv.client_name)}</div>
+      </div>
+      <div>
+        <div class="sum-item-title">Total Invoiced</div>
+        <div class="sum-item-val">$${Number(inv.total_amount || 0).toFixed(2)}</div>
+        <div style="font-size:0.8rem;color:var(--success)">$${Number(inv.amount_paid || 0).toFixed(2)} Paid</div>
+      </div>
+      <div>
+        <div class="sum-item-title">Balance Due</div>
+        <div class="sum-item-val due-highlight">$${Number(inv.balance_due || 0).toFixed(2)}</div>
+        <div style="font-size:0.8rem;color:var(--text-light)">${esc(inv.payment_terms || 'Net 15')}</div>
+      </div>
+    `;
+    amountInput.value = Number(inv.balance_due || 0).toFixed(2);
+    amountInput.max = Number(inv.balance_due || 0).toFixed(2);
+  } catch (err) {
+    summaryEl.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+async function savePayment(e) {
+  e.preventDefault();
+  const invoiceId = document.getElementById('payment-inv-id').value;
+  const amount = parseFloat(document.getElementById('payment-amount').value);
+  const method = document.getElementById('payment-method').value;
+  const reference = document.getElementById('payment-reference').value.trim();
+  const notes = document.getElementById('payment-notes').value.trim();
+
+  if (!amount || amount <= 0) {
+    showToast('Please enter a valid positive payment amount.', 'error');
+    return;
+  }
+
+  const saveBtn = document.getElementById('payment-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner"></span> Recording…';
+
+  try {
+    await apiFetch(`/invoices/${invoiceId}/payments`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, method, reference, notes })
+    });
+    showToast(`Payment of $${amount.toFixed(2)} recorded on ${invoiceId}!`, 'success');
+    closePaymentModal();
+    if (currentView === 'invoices') {
+      await loadInvoices();
+    }
+  } catch (err) {
+    showToast(`Failed to record payment: ${err.message}`, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Record &amp; Update Invoice';
+  }
+}
+
+function closePaymentModal() {
+  const overlay = document.getElementById('payment-modal');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+// ─── Printable / PDF Invoice Preview Modal ────────────────────────────────────
+
+async function openInvoicePreview(invoiceId) {
+  const overlay = document.getElementById('invoice-view-modal');
+  const contentEl = document.getElementById('invoice-view-content');
+  const titleEl = document.getElementById('invoice-view-modal-title');
+
+  titleEl.textContent = `Invoice ${invoiceId}`;
+  contentEl.innerHTML = '<div class="alert alert-info"><span class="spinner"></span> Loading invoice document…</div>';
+
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+
+  try {
+    const inv = await apiFetch(`/invoices/${invoiceId}`);
+    renderPrintableInvoice(inv);
+  } catch (err) {
+    contentEl.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderPrintableInvoice(inv) {
+  const contentEl = document.getElementById('invoice-view-content');
+
+  const itemsRows = (inv.items || []).map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td><strong>${esc(item.description)}</strong></td>
+      <td style="text-align:center">${item.quantity}</td>
+      <td style="text-align:right">$${Number(item.unit_price || 0).toFixed(2)}</td>
+      <td style="text-align:right;font-weight:700;">$${Number(item.amount || (item.quantity * item.unit_price) || 0).toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  const paymentsSection = Array.isArray(inv.payments) && inv.payments.length > 0 ? `
+    <div class="invoice-payments-history">
+      <h4><i class="fa-solid fa-receipt"></i> Recorded Payment History</h4>
+      <table class="list-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Payment ID</th>
+            <th>Date</th>
+            <th>Method</th>
+            <th>Reference</th>
+            <th style="text-align:right">Amount Paid</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${inv.payments.map(p => `
+            <tr>
+              <td><code>${esc(p.id)}</code></td>
+              <td>${formatDate(p.date)}</td>
+              <td>${esc(p.method)}</td>
+              <td>${esc(p.reference || '—')}</td>
+              <td style="text-align:right;color:var(--success);font-weight:700">+$${Number(p.amount || 0).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  contentEl.innerHTML = `
+    <div class="invoice-printable" id="printable-area">
+      <!-- Header -->
+      <div class="invoice-printable-header">
+        <div>
+          <div class="invoice-brand-logo">LAWN <span>CRAFT</span></div>
+          <div class="invoice-brand-tagline">Premium Turf Management &amp; Landscape Architecture</div>
+          <div style="font-size:0.85rem;color:#666;margin-top:6px;line-height:1.4">
+            142 Heritage Way, Melbourne VIC 3000<br>
+            Phone: (03) 9876 5432 · accounts@lawncraft.com.au
+          </div>
+        </div>
+        <div class="invoice-meta-block">
+          <div class="invoice-meta-title">TAX INVOICE</div>
+          <div class="invoice-meta-row">Invoice #: <strong>${esc(inv.id)}</strong></div>
+          <div class="invoice-meta-row">Issue Date: <strong>${formatDate(inv.issue_date)}</strong></div>
+          <div class="invoice-meta-row">Due Date: <strong>${formatDate(inv.due_date)}</strong></div>
+          <div class="invoice-meta-row">Payment Terms: <strong>${esc(inv.payment_terms || 'Net 15')}</strong></div>
+          ${inv.work_order_id ? `<div class="invoice-meta-row">Work Order Reference: <strong>#${inv.work_order_id}</strong></div>` : ''}
+          <div class="invoice-meta-row" style="margin-top:6px;">Status: <span class="status-badge status-${inv.status}">${labelStatus(inv.status)}</span></div>
+        </div>
+      </div>
+
+      <!-- Parties Grid -->
+      <div class="invoice-parties-grid">
+        <div class="invoice-party-box">
+          <h4>Billed To (Client):</h4>
+          <div class="invoice-party-name">${esc(inv.client_name)}</div>
+          <div class="invoice-party-details">
+            ${inv.client_email ? `<div><i class="fa-solid fa-envelope" style="width:16px"></i> ${esc(inv.client_email)}</div>` : ''}
+            ${inv.client_phone ? `<div><i class="fa-solid fa-phone" style="width:16px"></i> ${esc(inv.client_phone)}</div>` : ''}
+          </div>
+        </div>
+        <div class="invoice-party-box">
+          <h4>Service / Property Location:</h4>
+          <div class="invoice-party-name">${esc(inv.property_address)}</div>
+          <div class="invoice-party-details">
+            <div>Authorized Field Supervisor: <strong>${currentUser?.full_name || 'Lawn Craft Supervisor'}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Line Items Table -->
+      <table class="invoice-print-table">
+        <thead>
+          <tr>
+            <th style="width:5%">#</th>
+            <th style="width:55%">Description of Services / Materials</th>
+            <th style="width:10%;text-align:center">Qty</th>
+            <th style="width:15%;text-align:right">Rate ($)</th>
+            <th style="width:15%;text-align:right">Amount ($)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
+
+      <!-- Totals Breakdown -->
+      <div class="invoice-print-totals">
+        <table class="invoice-totals-table">
+          <tr>
+            <td>Subtotal:</td>
+            <td style="text-align:right">$${Number(inv.subtotal || 0).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>Sales Tax / GST (${inv.tax_rate || 0}%):</td>
+            <td style="text-align:right">+$${Number(inv.tax_amount || 0).toFixed(2)}</td>
+          </tr>
+          ${inv.discount_amount > 0 ? `
+            <tr>
+              <td>Discount Applied:</td>
+              <td style="text-align:right;color:var(--success)">-$${Number(inv.discount_amount).toFixed(2)}</td>
+            </tr>
+          ` : ''}
+          <tr class="total-highlight">
+            <td>Total Invoiced:</td>
+            <td style="text-align:right">$${Number(inv.total_amount || 0).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>Total Payments Received:</td>
+            <td style="text-align:right;color:var(--success)">-$${Number(inv.amount_paid || 0).toFixed(2)}</td>
+          </tr>
+          <tr class="due-highlight">
+            <td>Balance Outstanding:</td>
+            <td style="text-align:right">$${Number(inv.balance_due || 0).toFixed(2)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Payment Log -->
+      ${paymentsSection}
+
+      <!-- Notes and Terms -->
+      ${inv.notes ? `
+        <div class="invoice-notes-block">
+          <strong>Client Notes &amp; Remittance Advice:</strong><br>
+          ${esc(inv.notes)}
+        </div>
+      ` : ''}
+
+      <div class="invoice-footer-terms">
+        Electronic funds transfer (EFT): BSB: 063-000 | Account: 1234-5678 | Reference: ${esc(inv.id)}<br>
+        Thank you for entrusting your grounds care to Lawn Craft. For billing questions, contact accounts@lawncraft.com.au.
+      </div>
+    </div>
+  `;
+}
+
+function closeInvoiceViewModal() {
+  const overlay = document.getElementById('invoice-view-modal');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function createInvoiceForWorkOrder(woId) {
+  closeModal();
+  openInvoiceForm(null, woId);
 }
 
 function groupBy(items, key) {
@@ -1351,10 +2055,17 @@ function renderWorkOrderModal(wo) {
       </div>` : ''}
     </div>
 
-    <div class="status-update-row">
-      <label for="modal-status-select">Update Status</label>
-      <select id="modal-status-select">${statusOptions}</select>
-      <button class="btn-save" onclick="saveStatusUpdate(${wo.id})">Save</button>
+    <div class="status-update-row" style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label for="modal-status-select" style="margin:0">Update Status:</label>
+        <select id="modal-status-select">${statusOptions}</select>
+        <button class="btn-save" onclick="saveStatusUpdate(${wo.id})">Save</button>
+      </div>
+      <div>
+        <button class="btn-subtle" onclick="createInvoiceForWorkOrder(${wo.id})">
+          <i class="fa-solid fa-file-invoice-dollar" style="color:var(--primary)"></i> Create Client Invoice
+        </button>
+      </div>
     </div>
   `;
 }
@@ -1629,6 +2340,317 @@ function renderMiniMap(queueItems, planningItems, activeItems) {
   `;
 }
 
+// ─── ERP: Inventory Management ───────────────────────────────────────────────
+
+let inventoryList = [];
+
+async function loadInventory() {
+  const tbody = document.getElementById('tbody-inventory');
+  tbody.innerHTML = `<tr><td colspan="10" class="empty-row"><span class="spinner"></span> Loading inventory catalog…</td></tr>`;
+
+  try {
+    const [invData, txns] = await Promise.all([
+      apiFetch('/erp/inventory'),
+      apiFetch('/erp/inventory/transactions').catch(() => [])
+    ]);
+
+    inventoryList = invData.items || [];
+    const stats = invData.stats || {};
+
+    // Update stats
+    document.getElementById('inv-stat-sku-count').textContent = stats.total_items || inventoryList.length;
+    document.getElementById('inv-stat-low-count').textContent = stats.low_stock_count || 0;
+    document.getElementById('inv-stat-valuation').textContent = `$${(stats.total_inventory_valuation || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const invBadge = document.getElementById('inventory-badge');
+    if (invBadge) {
+      if (stats.low_stock_count > 0) {
+        invBadge.textContent = `${stats.low_stock_count} LOW`;
+        invBadge.style.display = 'inline-block';
+      } else {
+        invBadge.style.display = 'none';
+      }
+    }
+
+    renderInventoryTable();
+    renderInventoryTransactions(txns);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-row text-danger">Failed to load inventory: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function renderInventoryTable() {
+  const tbody = document.getElementById('tbody-inventory');
+  const countEl = document.getElementById('count-inventory');
+  const catFilter = document.getElementById('inventory-category-filter')?.value || 'all';
+  const searchVal = (document.getElementById('inventory-search-input')?.value || '').toLowerCase().trim();
+
+  let filtered = [...inventoryList];
+  if (catFilter !== 'all') {
+    filtered = filtered.filter(i => i.category === catFilter);
+  }
+  if (searchVal) {
+    filtered = filtered.filter(i =>
+      i.name.toLowerCase().includes(searchVal) ||
+      i.sku.toLowerCase().includes(searchVal) ||
+      (i.supplier && i.supplier.toLowerCase().includes(searchVal)) ||
+      (i.location && i.location.toLowerCase().includes(searchVal))
+    );
+  }
+
+  if (countEl) countEl.textContent = `${filtered.length} of ${inventoryList.length} items`;
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-row">No inventory items matched your filter criteria.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(item => {
+    const isLow = item.quantity_on_hand <= item.min_reorder_level;
+    return `
+      <tr class="${isLow ? 'table-row-danger' : ''}">
+        <td>
+          <div style="font-weight:700;color:var(--text-dark);">${esc(item.name)}</div>
+          <div style="font-size:0.8rem;color:var(--text-light);">${esc(item.supplier || 'Standard Supplier')} · ${esc(item.unit)}</div>
+        </td>
+        <td><code>${esc(item.sku)}</code></td>
+        <td><span class="badge" style="background:#e8e3dd;color:#1a1a1a;">${esc(item.category)}</span></td>
+        <td>
+          <span style="font-weight:800;font-size:1.05rem;color:${isLow ? 'var(--danger)' : 'var(--text-dark)'}">
+            ${item.quantity_on_hand}
+          </span>
+          ${isLow ? '<span class="badge badge-urgent" style="font-size:0.7rem;margin-left:4px;">REORDER</span>' : ''}
+        </td>
+        <td>${item.min_reorder_level} ${esc(item.unit)}</td>
+        <td>$${item.unit_cost.toFixed(2)}</td>
+        <td>$${item.unit_price.toFixed(2)}</td>
+        <td><i class="fa-solid fa-location-dot" style="font-size:0.8rem;color:var(--text-light)"></i> ${esc(item.location || 'Warehouse')}</td>
+        <td>
+          <span class="badge ${item.auto_reorder_enabled ? 'badge-success' : 'badge-neutral'}">
+            ${item.auto_reorder_enabled ? '<i class="fa-solid fa-check"></i> Enabled' : 'Off'}
+          </span>
+        </td>
+        <td>
+          <button class="btn-sm btn-secondary" onclick="quickRestockItem('${item.id}', '${esc(item.name)}', ${item.reorder_quantity})">
+            <i class="fa-solid fa-cart-plus"></i> Restock (+${item.reorder_quantity})
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function quickRestockItem(itemId, itemName, defaultQty) {
+  const qtyStr = prompt(`Enter restock quantity for "${itemName}":`, defaultQty || 20);
+  if (!qtyStr) return;
+  const qty = parseFloat(qtyStr);
+  if (isNaN(qty) || qty <= 0) {
+    showToast('Please enter a valid positive quantity.', 'danger');
+    return;
+  }
+
+  try {
+    await apiFetch('/erp/inventory/restock', {
+      method: 'POST',
+      body: JSON.stringify({ item_id: itemId, quantity: qty, reason: 'Manual supervisor restock' })
+    });
+    showToast(`Restocked ${qty} units for ${itemName}`, 'success');
+    await loadInventory();
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+function renderInventoryTransactions(txns) {
+  const tbody = document.getElementById('tbody-inventory-txns');
+  if (!tbody) return;
+
+  if (!txns.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No material transactions recorded yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = txns.map(t => `
+    <tr>
+      <td>${formatDate(t.timestamp)}</td>
+      <td style="font-weight:600;">${esc(t.item_name || t.item_id)}</td>
+      <td>
+        <span class="badge ${t.type === 'consumption' ? 'badge-warning' : (t.type === 'auto_reorder' ? 'badge-info' : 'badge-success')}">
+          ${t.type === 'auto_reorder' ? '<i class="fa-solid fa-robot"></i> Auto-PO' : esc(t.type)}
+        </span>
+      </td>
+      <td style="font-weight:700;color:${t.type === 'consumption' ? 'var(--danger)' : 'var(--success)'}">
+        ${t.type === 'consumption' ? '-' : '+'}${t.quantity} ${esc(t.unit || '')}
+      </td>
+      <td>${t.previous_qty} &rarr; <strong>${t.new_qty}</strong></td>
+      <td style="font-size:0.85rem;">${esc(t.reason || 'Work order deduction')}</td>
+      <td style="font-size:0.8rem;color:var(--text-light);">${esc(t.actor_email || 'system')}</td>
+    </tr>
+  `).join('');
+}
+
+// ─── ERP: Automated Payroll ───────────────────────────────────────────────────
+
+let payrollEntries = [];
+
+async function loadPayroll() {
+  const tbody = document.getElementById('tbody-payroll');
+  tbody.innerHTML = `<tr><td colspan="11" class="empty-row"><span class="spinner"></span> Loading payroll ledger…</td></tr>`;
+
+  try {
+    const data = await apiFetch('/erp/payroll');
+    payrollEntries = data.entries || [];
+    const stats = data.stats || {};
+
+    document.getElementById('payroll-stat-employee-count').textContent = stats.total_employees || payrollEntries.length;
+    document.getElementById('payroll-stat-hours').textContent = `${stats.total_hours_logged || 0} hrs`;
+    document.getElementById('payroll-stat-gross').textContent = `$${(stats.total_gross_payroll || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('payroll-stat-net').textContent = `$${(stats.total_net_payroll || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    const countEl = document.getElementById('count-payroll');
+    if (countEl) countEl.textContent = `${payrollEntries.length} payroll entries`;
+
+    if (!payrollEntries.length) {
+      tbody.innerHTML = `<tr><td colspan="11" class="empty-row">No payroll entries available for the active period.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = payrollEntries.map(e => `
+      <tr>
+        <td><code>${esc(e.id)}</code></td>
+        <td style="font-weight:700;color:var(--text-dark);">${esc(e.employee_name)}</td>
+        <td><span class="badge" style="background:#e8e3dd;color:#1a1a1a;">${esc(e.role)}</span></td>
+        <td style="font-size:0.85rem;">${e.pay_period_start} &rarr; ${e.pay_period_end}</td>
+        <td>
+          <strong>${e.regular_hours + e.overtime_hours} hrs</strong>
+          ${e.overtime_hours > 0 ? `<div style="font-size:0.75rem;color:var(--warning)">(${e.overtime_hours} hrs OT @ 1.5x)</div>` : ''}
+        </td>
+        <td>$${e.hourly_rate.toFixed(2)}/hr</td>
+        <td><span class="badge badge-info">${e.jobs_completed} jobs</span></td>
+        <td style="color:${e.bonus > 0 ? 'var(--success)' : 'var(--text-light)'}">+$${e.bonus.toFixed(2)}</td>
+        <td style="font-weight:700;">$${e.gross_pay.toFixed(2)}</td>
+        <td style="font-weight:800;color:var(--success);font-size:1.05rem;">$${e.net_pay.toFixed(2)}</td>
+        <td>
+          <span class="badge ${e.status === 'approved' || e.status === 'processed' ? 'badge-success' : 'badge-warning'}">
+            ${esc(e.status.toUpperCase())}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-row text-danger">Failed to load payroll: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+async function approveAllPayroll() {
+  try {
+    await apiFetch('/erp/payroll/approve-all', { method: 'POST' });
+    showToast('All pending draft payroll entries approved for disbursement', 'success');
+    await loadPayroll();
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+// ─── ERP: Workflow Automation & Rules ─────────────────────────────────────────
+
+let automationRules = [];
+
+async function loadAutomationRules() {
+  const tbodyRules = document.getElementById('tbody-automation-rules');
+  const tbodyLogs = document.getElementById('tbody-automation-logs');
+  tbodyRules.innerHTML = `<tr><td colspan="6" class="empty-row"><span class="spinner"></span> Loading rules…</td></tr>`;
+
+  try {
+    const data = await apiFetch('/erp/automation/rules');
+    automationRules = data.rules || [];
+    const logs = data.logs || [];
+    const summary = data.summary || {};
+
+    document.getElementById('auto-stat-active-rules').textContent = `${summary.active_rules || 0} / ${summary.total_rules || 0}`;
+    document.getElementById('auto-stat-executions').textContent = summary.total_executions || 0;
+
+    const countEl = document.getElementById('count-rules');
+    if (countEl) countEl.textContent = `${automationRules.length} automated workflow triggers`;
+
+    tbodyRules.innerHTML = automationRules.map(r => `
+      <tr>
+        <td>
+          <div style="font-weight:700;color:var(--text-dark);">${esc(r.name)}</div>
+          <div style="font-size:0.85rem;color:var(--text-medium);margin-top:2px;">${esc(r.description)}</div>
+        </td>
+        <td><code>${esc(r.trigger_event)}</code></td>
+        <td><strong style="color:var(--accent-dark)">${r.execution_count}</strong> runs</td>
+        <td style="font-size:0.85rem;">${r.last_triggered ? formatDate(r.last_triggered) : 'Never'}</td>
+        <td>
+          <span class="badge ${r.is_enabled ? 'badge-success' : 'badge-neutral'}">
+            ${r.is_enabled ? '<i class="fa-solid fa-bolt"></i> ACTIVE' : 'PAUSED'}
+          </span>
+        </td>
+        <td>
+          <button class="btn-sm ${r.is_enabled ? 'btn-secondary' : 'btn-primary'}" onclick="toggleAutomationRule('${r.id}')">
+            <i class="fa-solid ${r.is_enabled ? 'fa-pause' : 'fa-play'}"></i> ${r.is_enabled ? 'Pause' : 'Enable'}
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    if (!logs.length) {
+      tbodyLogs.innerHTML = `<tr><td colspan="5" class="empty-row">No automation events logged yet.</td></tr>`;
+    } else {
+      tbodyLogs.innerHTML = logs.map(l => `
+        <tr>
+          <td>${formatDate(l.timestamp)}</td>
+          <td><code>${esc(l.event_type)}</code></td>
+          <td style="font-weight:600;">${esc(l.rule_name)}</td>
+          <td style="font-size:0.85rem;">${esc(l.details)}</td>
+          <td>
+            <span class="badge ${l.status === 'success' ? 'badge-success' : (l.status === 'warning' ? 'badge-warning' : 'badge-danger')}">
+              ${esc(l.status.toUpperCase())}
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    }
+  } catch (err) {
+    tbodyRules.innerHTML = `<tr><td colspan="6" class="empty-row text-danger">Failed to load automation rules: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+async function toggleAutomationRule(ruleId) {
+  try {
+    await apiFetch(`/erp/automation/rules/${ruleId}/toggle`, { method: 'PUT' });
+    showToast('Automation rule status updated', 'success');
+    await loadAutomationRules();
+  } catch (err) {
+    showToast(err.message, 'danger');
+  }
+}
+
+async function runFullErpSync() {
+  const btn = document.getElementById('btn-trigger-erp-sync');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Running ERP Batch Sync…`;
+  }
+
+  try {
+    const res = await apiFetch('/erp/automation/trigger-sync', { method: 'POST' });
+    showToast(`ERP Batch Completed: ${res.invoices_synced || 0} invoices generated & timesheets synchronized!`, 'success');
+    if (currentView === 'inventory') await loadInventory();
+    else if (currentView === 'payroll') await loadPayroll();
+    else if (currentView === 'automation') await loadAutomationRules();
+    else if (currentView === 'invoices') await loadInvoices();
+  } catch (err) {
+    showToast(err.message, 'danger');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-robot"></i> Run Full ERP Automation Sync`;
+    }
+  }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -1702,6 +2724,45 @@ async function init() {
     if (e.key === 'Enter') loadAuditTrail();
   });
 
+  // Invoicing & Billing event listeners
+  document.getElementById('btn-create-invoice')?.addEventListener('click', () => openInvoiceForm());
+  document.getElementById('invoice-status-filter')?.addEventListener('change', () => loadInvoices());
+  
+  let invSearchTimeout;
+  document.getElementById('invoice-search-input')?.addEventListener('input', () => {
+    clearTimeout(invSearchTimeout);
+    invSearchTimeout = setTimeout(() => loadInvoices(), 300);
+  });
+
+  document.getElementById('btn-add-line-item')?.addEventListener('click', () => addLineItemRow());
+  document.getElementById('inv-tax-rate')?.addEventListener('input', calculateFormTotals);
+  document.getElementById('inv-discount-amount')?.addEventListener('input', calculateFormTotals);
+  document.getElementById('inv-link-wo')?.addEventListener('change', e => {
+    if (e.target.value) {
+      autofillInvoiceFromWorkOrder(e.target.value);
+    }
+  });
+
+  document.getElementById('invoice-form')?.addEventListener('submit', saveInvoice);
+  document.getElementById('invoice-form-close-btn')?.addEventListener('click', closeInvoiceFormModal);
+  document.getElementById('invoice-form-cancel-btn')?.addEventListener('click', closeInvoiceFormModal);
+  document.getElementById('invoice-form-modal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('invoice-form-modal')) closeInvoiceFormModal();
+  });
+
+  document.getElementById('payment-form')?.addEventListener('submit', savePayment);
+  document.getElementById('payment-modal-close-btn')?.addEventListener('click', closePaymentModal);
+  document.getElementById('payment-cancel-btn')?.addEventListener('click', closePaymentModal);
+  document.getElementById('payment-modal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('payment-modal')) closePaymentModal();
+  });
+
+  document.getElementById('invoice-view-close-btn')?.addEventListener('click', closeInvoiceViewModal);
+  document.getElementById('btn-print-invoice-doc')?.addEventListener('click', () => window.print());
+  document.getElementById('invoice-view-modal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('invoice-view-modal')) closeInvoiceViewModal();
+  });
+
   // Modal close
   document.getElementById('modal-close-btn').addEventListener('click', closeModal);
   document.getElementById('wo-modal').addEventListener('click', e => {
@@ -1724,9 +2785,27 @@ async function init() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       closeModal();
+      closeInvoiceFormModal();
+      closePaymentModal();
+      closeInvoiceViewModal();
       closeMobileSidebar();
     }
   });
+
+  // ERP Event Listeners
+  document.getElementById('inventory-category-filter')?.addEventListener('change', renderInventoryTable);
+  
+  let inventorySearchTimeout;
+  document.getElementById('inventory-search-input')?.addEventListener('input', () => {
+    clearTimeout(inventorySearchTimeout);
+    inventorySearchTimeout = setTimeout(renderInventoryTable, 250);
+  });
+
+  document.getElementById('btn-trigger-erp-sync')?.addEventListener('click', runFullErpSync);
+  document.getElementById('btn-approve-all-payroll')?.addEventListener('click', approveAllPayroll);
+
+  window.quickRestockItem = quickRestockItem;
+  window.toggleAutomationRule = toggleAutomationRule;
 
   // Check for existing session
   if (getToken()) {

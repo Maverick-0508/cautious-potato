@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Supervisor, admin, or field technician account profile",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "full_name": { "type": "string", "description": "User full name" },
+        "role": { "type": "string", "enum": ["admin", "supervisor", "field_tech", "finance"], "description": "User access role" },
+        "department": { "type": "string", "description": "Organizational department" },
+        "cost_center": { "type": "string", "description": "Assigned cost center" },
+        "notes": { "type": "string", "description": "Internal notes" },
+        "hourly_rate": { "type": "number", "description": "Standard hourly pay rate" },
+        "overtime_rate": { "type": "number", "description": "Overtime hourly pay rate" }
+      },
+      "required": ["email", "full_name", "role"]
+    },
+    "WorkOrder": {
+      "title": "WorkOrder",
+      "description": "Lawn care, maintenance, and landscaping field job order",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Job title or summary" },
+        "client_name": { "type": "string", "description": "Client full name" },
+        "client_email": { "type": "string", "format": "email", "description": "Client contact email" },
+        "client_phone": { "type": "string", "description": "Client contact phone" },
+        "property_address": { "type": "string", "description": "Service location address" },
+        "service_type": { "type": "string", "description": "Type of lawn care service" },
+        "status": { "type": "string", "enum": ["incoming", "planned", "reviewed", "in_progress", "completed", "verified", "cancelled"], "description": "Work order lifecycle status" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "description": "Job priority" },
+        "target_date": { "type": "string", "description": "Scheduled target date" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "started_at": { "type": "string", "description": "Job start timestamp" },
+        "completed_at": { "type": "string", "description": "Job completion timestamp" },
+        "description": { "type": "string", "description": "Detailed job specifications" },
+        "supervisor_notes": { "type": "string", "description": "Supervisor dispatch notes" },
+        "assigned_user_id": { "type": "string", "description": "Assigned technician user ID" }
+      },
+      "required": ["title", "client_name", "property_address", "service_type", "status", "priority", "created_at"]
+    },
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "description": "Lawn care parts, fertilizers, seeds, and equipment inventory catalog",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Material or equipment name" },
+        "sku": { "type": "string", "description": "Stock keeping unit SKU code" },
+        "category": { "type": "string", "description": "Item category" },
+        "unit": { "type": "string", "description": "Unit of measure (Bags, Units, Yards, etc.)" },
+        "quantity_on_hand": { "type": "number", "description": "Available stock quantity" },
+        "min_reorder_level": { "type": "number", "description": "Safety threshold triggering reorder" },
+        "reorder_quantity": { "type": "number", "description": "Standard batch reorder quantity" },
+        "unit_cost": { "type": "number", "description": "Cost per unit" },
+        "unit_price": { "type": "number", "description": "Billing price per unit" },
+        "supplier": { "type": "string", "description": "Vendor or supplier name" },
+        "location": { "type": "string", "description": "Storage warehouse bay or bin" },
+        "auto_reorder_enabled": { "type": "boolean", "description": "Whether automated reorders are active" },
+        "last_restocked": { "type": "string", "description": "Last restock date" }
+      },
+      "required": ["name", "sku", "category", "unit", "quantity_on_hand"]
+    },
+    "PayrollEntry": {
+      "title": "PayrollEntry",
+      "description": "Technician weekly timesheet and payroll record",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "Technician user ID" },
+        "employee_name": { "type": "string", "description": "Technician full name" },
+        "role": { "type": "string", "description": "Employee role" },
+        "department": { "type": "string", "description": "Department" },
+        "pay_period_start": { "type": "string", "description": "Pay period start date" },
+        "pay_period_end": { "type": "string", "description": "Pay period end date" },
+        "regular_hours": { "type": "number", "description": "Standard hours worked" },
+        "overtime_hours": { "type": "number", "description": "Overtime hours worked" },
+        "hourly_rate": { "type": "number", "description": "Base rate per hour" },
+        "gross_pay": { "type": "number", "description": "Calculated gross compensation" },
+        "tax_deduction": { "type": "number", "description": "Estimated tax withholding" },
+        "net_pay": { "type": "number", "description": "Calculated net pay" },
+        "status": { "type": "string", "enum": ["draft", "submitted", "approved", "processed"], "description": "Payroll approval status" },
+        "jobs_completed": { "type": "number", "description": "Count of jobs completed during period" },
+        "bonus": { "type": "number", "description": "Performance or overtime bonus" },
+        "created_at": { "type": "string", "description": "Record creation timestamp" }
+      },
+      "required": ["employee_name", "pay_period_start", "pay_period_end", "gross_pay", "net_pay", "status"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Client invoice for lawn care services and material charges",
+      "type": "object",
+      "properties": {
+        "work_order_id": { "type": "string", "description": "Linked work order ID" },
+        "client_name": { "type": "string", "description": "Client name" },
+        "client_email": { "type": "string", "format": "email", "description": "Client email" },
+        "client_phone": { "type": "string", "description": "Client phone" },
+        "property_address": { "type": "string", "description": "Property address" },
+        "issue_date": { "type": "string", "description": "Invoice issue date" },
+        "due_date": { "type": "string", "description": "Payment due date" },
+        "status": { "type": "string", "enum": ["draft", "issued", "paid", "overdue", "cancelled"], "description": "Billing status" },
+        "payment_terms": { "type": "string", "description": "Payment terms (e.g. Net 15)" },
+        "subtotal": { "type": "number", "description": "Services subtotal" },
+        "tax_rate": { "type": "number", "description": "Tax percentage" },
+        "tax_amount": { "type": "number", "description": "Calculated tax" },
+        "discount_amount": { "type": "number", "description": "Applied discount" },
+        "total_amount": { "type": "number", "description": "Total invoice balance" },
+        "amount_paid": { "type": "number", "description": "Total payments received" },
+        "balance_due": { "type": "number", "description": "Outstanding balance due" },
+        "notes": { "type": "string", "description": "Invoice notes" },
+        "payment_method": { "type": "string", "description": "Payment method used" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "description": "Last update timestamp" },
+        "is_auto_generated": { "type": "boolean", "description": "Whether created by automation rule" }
+      },
+      "required": ["client_name", "property_address", "issue_date", "due_date", "status", "total_amount", "balance_due"]
+    },
+    "AutomationRule": {
+      "title": "AutomationRule",
+      "description": "Configurable workflow rule for automated invoicing, reordering, and payroll",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Rule display name" },
+        "trigger_event": { "type": "string", "description": "System event trigger" },
+        "description": { "type": "string", "description": "Human-readable rule explanation" },
+        "is_enabled": { "type": "boolean", "description": "Whether rule is currently active" },
+        "last_triggered": { "type": "string", "description": "Last execution timestamp" },
+        "action_config": { "type": "string", "description": "JSON action configuration" },
+        "execution_count": { "type": "number", "description": "Total executions count" }
+      },
+      "required": ["name", "trigger_event", "is_enabled"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Operational switch, policy, and configuration parameter",
+      "type": "object",
+      "properties": {
+        "group_name": { "type": "string", "description": "Setting category group" },
+        "label": { "type": "string", "description": "Human friendly label" },
+        "description": { "type": "string", "description": "Setting description" },
+        "value": { "type": "string", "description": "Current configured value" },
+        "is_sensitive": { "type": "boolean", "description": "Whether setting is masked" }
+      },
+      "required": ["group_name", "label", "value"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User accounts and authorization roles"
+    },
+    "/work_orders/{workOrderId}": {
+      "schema": { "$ref": "#/entities/WorkOrder" },
+      "description": "Field operations and work orders"
+    },
+    "/inventory_items/{itemId}": {
+      "schema": { "$ref": "#/entities/InventoryItem" },
+      "description": "Warehouse and vehicle inventory items"
+    },
+    "/payroll_entries/{payrollId}": {
+      "schema": { "$ref": "#/entities/PayrollEntry" },
+      "description": "Technician payroll timesheet logs"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "Client invoices and payment records"
+    },
+    "/automation_rules/{ruleId}": {
+      "schema": { "$ref": "#/entities/AutomationRule" },
+      "description": "ERP automation triggers and actions"
+    },
+    "/system_settings/{settingKey}": {
+      "schema": { "$ref": "#/entities/SystemSetting" },
+      "description": "Operational parameters and feature toggles"
+    }
+  }
+}
