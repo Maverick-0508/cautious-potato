@@ -20,18 +20,59 @@
 // - If the page is opened via file://, or from localhost on a non-8000 port,
 //   use the FastAPI backend on 127.0.0.1:8000.
 const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
-const LOCAL_API_BASE = 'http://127.0.0.1:8000/api';
+const DASHBOARD_API_STORAGE_KEY = 'dashboard_api_base';
 
-const API_BASE = (() => {
-  if (typeof window === 'undefined') return '/api';
+function normalizeApiBase(value) {
+  const normalized = trimTrailingSlash(String(value || '').trim());
+  if (!normalized) return '';
+  return normalized;
+}
 
-  const explicitBase = typeof window.DASHBOARD_API_BASE === 'string'
-    ? window.DASHBOARD_API_BASE.trim()
-    : '';
-  if (explicitBase) return trimTrailingSlash(explicitBase);
+function getMetaApiBase() {
+  if (typeof document === 'undefined') return '';
+  const meta = document.querySelector('meta[name="dashboard-api-base"]');
+  return normalizeApiBase(meta?.getAttribute('content') || '');
+}
 
-  return '/api';
+function getUrlApiBase() {
+  if (typeof window === 'undefined') return '';
+  const urlApiBase = new URLSearchParams(window.location.search).get('apiBase');
+  if (!urlApiBase) return '';
+  const normalized = normalizeApiBase(urlApiBase);
+  if (normalized) {
+    localStorage.setItem(DASHBOARD_API_STORAGE_KEY, normalized);
+  }
+  return normalized;
+}
+
+function getStoredApiBase() {
+  if (typeof window === 'undefined') return '';
+  return normalizeApiBase(localStorage.getItem(DASHBOARD_API_STORAGE_KEY) || '');
+}
+
+const API_BASE_DETAILS = (() => {
+  if (typeof window === 'undefined') {
+    return { base: '/api', source: 'server-default' };
+  }
+
+  const explicitBase = normalizeApiBase(
+    typeof window.DASHBOARD_API_BASE === 'string' ? window.DASHBOARD_API_BASE : ''
+  );
+  if (explicitBase) return { base: explicitBase, source: 'window.DASHBOARD_API_BASE' };
+
+  const urlBase = getUrlApiBase();
+  if (urlBase) return { base: urlBase, source: 'url.apiBase' };
+
+  const storedBase = getStoredApiBase();
+  if (storedBase) return { base: storedBase, source: 'localStorage.dashboard_api_base' };
+
+  const metaBase = getMetaApiBase();
+  if (metaBase) return { base: metaBase, source: 'meta.dashboard-api-base' };
+
+  return { base: '/api', source: 'default-proxy' };
 })();
+
+const API_BASE = API_BASE_DETAILS.base;
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -210,10 +251,15 @@ async function readErrorDetail(resp) {
 }
 
 async function apiFetch(path, options = {}) {
-  const resp = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: buildAuthHeaders(options),
-  });
+  let resp;
+  try {
+    resp = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: buildAuthHeaders(options),
+    });
+  } catch (err) {
+    throw new Error(`Unable to reach backend API (${API_BASE}). Verify DASHBOARD_API_BASE or Vercel BACKEND_API_BASE wiring.`);
+  }
 
   if (resp.status === 401) {
     handleSessionExpired();
@@ -296,15 +342,23 @@ function initTheme() {
 }
 
 async function login(email, password) {
-  const resp = await fetch(`${API_BASE}/auth/login/json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+  let resp;
+  try {
+    resp = await fetch(`${API_BASE}/auth/login/json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (err) {
+    throw new Error(`Cannot reach backend API (${API_BASE}). Configure DASHBOARD_API_BASE or set Vercel BACKEND_API_BASE for /api proxy.`);
+  }
 
   if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    throw new Error(body.detail || 'Invalid credentials');
+    const detail = await readErrorDetail(resp);
+    if (resp.status === 404 || resp.status === 502 || resp.status === 503 || resp.status === 504) {
+      throw new Error(`Backend API is not wired correctly (${API_BASE}). Configure DASHBOARD_API_BASE or Vercel BACKEND_API_BASE.`);
+    }
+    throw new Error(detail || `Sign in failed (${resp.status}).`);
   }
 
   const data = await resp.json();
