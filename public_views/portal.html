@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Service & Account Portal | Lawn Craft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --primary: #15803d;
+      --primary-dark: #14532d;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px 16px 64px;
+    }
+    .portal-wrap {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .portal-nav {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .brand-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .lookup-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+      margin-bottom: 24px;
+    }
+    .lookup-form {
+      display: flex;
+      gap: 10px;
+      max-width: 480px;
+      margin: 20px auto 12px;
+    }
+    .form-input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+    .quick-chips {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .chip:hover {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+    .client-hero {
+      background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .hero-title {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .hero-sub {
+      color: #bbf7d0;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .points-badge-box {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      padding: 12px 20px;
+      text-align: right;
+    }
+    .points-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fef08a;
+    }
+    .tier-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: #fef08a;
+      color: #713f12;
+      margin-top: 4px;
+    }
+    .portal-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .tab-btn {
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn.active {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .item-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .status-badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .badge-paid { background: #dcfce7; color: #15803d; }
+    .badge-issued { background: #fef9c3; color: #854d0e; }
+    .badge-progress { background: #dbeafe; color: #1d4ed8; }
+    .badge-approved { background: #dcfce7; color: #15803d; }
+  </style>
+</head>
+<body>
+
+  <div class="portal-wrap">
+    <div class="portal-nav">
+      <div class="brand-logo">
+        <i class="fa-solid fa-seedling"></i> Lawn Craft Client Portal
+      </div>
+      <div style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-lock" style="color:var(--primary);"></i>
+        <span>Secure Client Access</span>
+      </div>
+    </div>
+
+    <!-- Lookup Box -->
+    <div class="lookup-card" id="lookupCard">
+      <h2 style="font-size: 22px; font-weight: 700; color: var(--text);">Access Your Client Account</h2>
+      <p style="color: var(--muted); font-size: 14px; margin-top: 4px;">Enter your phone number or email address to view your scheduled services, quotes, and receipts.</p>
+      
+      <form class="lookup-form" id="lookupForm">
+        <input type="text" class="form-input" id="lookupInput" placeholder="e.g. 254700554433 or arthur.p@example.com" required>
+        <button type="submit" class="btn btn-primary">Find Account</button>
+      </form>
+
+      <div class="quick-chips">
+        <span style="font-size: 12px; color: var(--muted); line-height: 24px;">Quick Demo Accounts:</span>
+        <button type="button" class="chip" onclick="quickLookup('254700554433')">Arthur Pendelton (Gold VIP)</button>
+        <button type="button" class="chip" onclick="quickLookup('254712345678')">Eleanor Vance (Silver)</button>
+        <button type="button" class="chip" onclick="quickLookup('facilities@apexpark.com')">Apex Industrial (Platinum)</button>
+      </div>
+    </div>
+
+    <!-- Portal Content Area (Revealed on Lookup) -->
+    <div id="portalDashboard" style="display: none;">
+      <div class="client-hero">
+        <div>
+          <div class="hero-title" id="clientHeroName">Arthur Pendelton</div>
+          <div class="hero-sub" id="clientHeroAddress"><i class="fa-solid fa-location-dot"></i> 220 King William Street, Old Town</div>
+          <div style="font-size: 12px; color: #86efac; margin-top: 4px;" id="clientHeroPhone">Tel: 254700554433</div>
+        </div>
+        <div class="points-badge-box">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9;">Loyalty Rewards</div>
+          <div class="points-val" id="loyaltyPtsDisplay">420 pts</div>
+          <div class="tier-badge" id="loyaltyTierDisplay">Gold VIP Member</div>
+          <div style="font-size: 11px; margin-top: 4px; color: #fef08a;" id="loyaltyDiscountVal">$210.00 Redeemable</div>
+        </div>
+      </div>
+
+      <div class="portal-tabs">
+        <button class="tab-btn active" data-tab="invoices"><i class="fa-solid fa-file-invoice-dollar"></i> Invoices & Receipts (<span id="countInvoices">0</span>)</button>
+        <button class="tab-btn" data-tab="jobs"><i class="fa-solid fa-list-check"></i> Work Orders & Jobs (<span id="countJobs">0</span>)</button>
+        <button class="tab-btn" data-tab="quotes"><i class="fa-solid fa-file-signature"></i> Digital Estimates (<span id="countQuotes">0</span>)</button>
+        <button class="tab-btn" data-tab="loyalty"><i class="fa-solid fa-gift"></i> Loyalty & Perks</button>
+      </div>
+
+      <!-- Invoices Tab -->
+      <div class="tab-content active" id="tab-invoices">
+        <div class="card-list" id="invoicesList">
+          <div class="item-card"><p>Loading invoices…</p></div>
+        </div>
+      </div>
+
+      <!-- Jobs Tab -->
+      <div class="tab-content" id="tab-jobs">
+        <div class="card-list" id="jobsList">
+          <div class="item-card"><p>Loading jobs…</p></div>
+        </div>
+      </div>
+
+      <!-- Quotes Tab -->
+      <div class="tab-content" id="tab-quotes">
+        <div class="card-list" id="quotesList">
+          <div class="item-card"><p>Loading quotes…</p></div>
+        </div>
+      </div>
+
+      <!-- Loyalty Tab -->
+      <div class="tab-content" id="tab-loyalty">
+        <div class="item-card" style="display: block;">
+          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;"><i class="fa-solid fa-award"></i> Membership Tier Benefits</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px;">
+            <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid var(--border);">
+              <div style="font-weight: 700; color: #15803d; font-size: 14px;">Points Accrual</div>
+              <p style="font-size: 12px; color: var(--muted); margin-top: 4px;">Earn 1 point for every $10 spent on all maintenance and landscaping services.</p>
+            </div>
+            <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid var(--border);">
+              <div style="font-weight: 700; color: #15803d; font-size: 14px;">Redemption Value</div>
+              <p style="font-size: 12px; color: var(--muted); margin-top: 4px;">Each point is worth $0.50 off your next invoice or instant M-Pesa checkout.</p>
+            </div>
+            <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid var(--border);">
+              <div style="font-weight: 700; color: #15803d; font-size: 14px;">Your Referral Code</div>
+              <p style="font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 4px;" id="referralCodeTxt">REF-ARTHUR</p>
+              <span style="font-size: 11px; color: var(--muted);">Share with neighbors for $25 credit each.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('lookupForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = document.getElementById('lookupInput').value.trim();
+      if (val) lookupPortal(val);
+    });
+
+    function quickLookup(identifier) {
+      document.getElementById('lookupInput').value = identifier;
+      lookupPortal(identifier);
+    }
+
+    async function lookupPortal(identifier) {
+      try {
+        const res = await fetch('/api/portal/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier })
+        });
+        if (!res.ok) throw new Error('Could not find account');
+        const data = await res.json();
+        renderPortal(data);
+      } catch (err) {
+        alert('Could not find account records for that number or email. Please check and try again.');
+      }
+    }
+
+    function renderPortal(data) {
+      document.getElementById('portalDashboard').style.display = 'block';
+      const c = data.client;
+      const l = data.loyalty;
+
+      document.getElementById('clientHeroName').textContent = c.name || 'Valued Client';
+      document.getElementById('clientHeroAddress').innerHTML = `<i class="fa-solid fa-location-dot"></i> ${c.property_address || 'Registered Lawn Craft Property'}`;
+      document.getElementById('clientHeroPhone').textContent = `Contact: ${c.phone || c.email || 'On File'}`;
+
+      document.getElementById('loyaltyPtsDisplay').textContent = `${l.points_balance || 0} pts`;
+      document.getElementById('loyaltyTierDisplay').textContent = `${(l.tier || 'bronze').toUpperCase()} Member`;
+      document.getElementById('loyaltyDiscountVal').textContent = `$${((l.points_balance || 0) * 0.5).toFixed(2)} Redeemable Value`;
+      document.getElementById('referralCodeTxt').textContent = l.referral_code || 'REF-LAWNCRAFT';
+
+      // Invoices
+      document.getElementById('countInvoices').textContent = (data.invoices || []).length;
+      const invList = document.getElementById('invoicesList');
+      invList.innerHTML = '';
+      if (!data.invoices || data.invoices.length === 0) {
+        invList.innerHTML = '<div class="item-card"><p style="color:var(--muted);">No invoices recorded for this account yet.</p></div>';
+      } else {
+        data.invoices.forEach(inv => {
+          const card = document.createElement('div');
+          card.className = 'item-card';
+          const isPaid = inv.status === 'paid';
+          card.innerHTML = `
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:15px;">Invoice #${inv.id}</strong>
+                <span class="status-badge ${isPaid ? 'badge-paid' : 'badge-issued'}">${inv.status}</span>
+              </div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">
+                Issued: ${new Date(inv.issue_date).toLocaleDateString()} · Due: ${new Date(inv.due_date).toLocaleDateString()}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:16px; font-weight:700;">$${Number(inv.total_amount).toFixed(2)}</div>
+              <div style="font-size:12px; color:${isPaid ? '#15803d' : '#dc2626'};">
+                ${isPaid ? 'Paid in Full' : `Balance: $${Number(inv.balance_due).toFixed(2)}`}
+              </div>
+            </div>
+            <div style="width:100%; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid #f1f5f9; padding-top:10px; margin-top:6px;">
+              ${!isPaid ? `<a href="/pay/${inv.id}" class="btn btn-primary" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-credit-card"></i> Pay via M-Pesa / Card</a>` : ''}
+              <a href="/receipt/${inv.id}" class="btn" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-receipt"></i> Official E-Receipt</a>
+            </div>
+          `;
+          invList.appendChild(card);
+        });
+      }
+
+      // Jobs
+      document.getElementById('countJobs').textContent = (data.work_orders || []).length;
+      const jobsList = document.getElementById('jobsList');
+      jobsList.innerHTML = '';
+      if (!data.work_orders || data.work_orders.length === 0) {
+        jobsList.innerHTML = '<div class="item-card"><p style="color:var(--muted);">No work orders scheduled yet.</p></div>';
+      } else {
+        data.work_orders.forEach(wo => {
+          const card = document.createElement('div');
+          card.className = 'item-card';
+          card.innerHTML = `
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:15px;">Job #${wo.id} · ${wo.title || wo.service_type}</strong>
+                <span class="status-badge badge-progress">${wo.status}</span>
+              </div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">
+                ${wo.property_address} · Priority: ${wo.priority || 'standard'}
+              </div>
+            </div>
+            <div>
+              <a href="/track/${wo.id}" class="btn btn-primary" style="padding:6px 14px; font-size:12px;">
+                <i class="fa-solid fa-location-crosshairs"></i> Live Job Tracker
+              </a>
+            </div>
+          `;
+          jobsList.appendChild(card);
+        });
+      }
+
+      // Quotes
+      document.getElementById('countQuotes').textContent = (data.quotes || []).length;
+      const quotesList = document.getElementById('quotesList');
+      quotesList.innerHTML = '';
+      if (!data.quotes || data.quotes.length === 0) {
+        quotesList.innerHTML = '<div class="item-card"><p style="color:var(--muted);">No active digital estimates.</p></div>';
+      } else {
+        data.quotes.forEach(q => {
+          const card = document.createElement('div');
+          card.className = 'item-card';
+          card.innerHTML = `
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:15px;">Quote #${q.id} · ${q.service_tier}</strong>
+                <span class="status-badge ${q.status === 'approved' ? 'badge-approved' : 'badge-issued'}">${q.status}</span>
+              </div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">
+                Valid Until: ${q.valid_until || '14 Days'} · Total: $${Number(q.total_amount).toFixed(2)}
+              </div>
+            </div>
+            <div>
+              <a href="/quote/${q.id}" class="btn" style="padding:6px 14px; font-size:12px;">
+                <i class="fa-solid fa-pen-fancy"></i> View & Approve Quote
+              </a>
+            </div>
+          `;
+          quotesList.appendChild(card);
+        });
+      }
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const tabId = btn.dataset.tab;
+        const target = document.getElementById(`tab-${tabId}`);
+        if (target) target.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

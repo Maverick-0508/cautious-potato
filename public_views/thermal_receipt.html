@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Thermal Receipt | Lawn Craft</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #e2e8f0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      color: #000;
+      padding: 20px 10px;
+    }
+    .pos-ticket {
+      width: 80mm;
+      max-width: 100%;
+      margin: 0 auto;
+      background: #fff;
+      padding: 16px 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      border-radius: 4px;
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .bold { font-weight: bold; }
+    .divider {
+      border-top: 1px dashed #000;
+      margin: 8px 0;
+    }
+    .double-divider {
+      border-top: 2px solid #000;
+      margin: 8px 0;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+    }
+    .subtitle {
+      font-size: 10px;
+      margin-bottom: 6px;
+    }
+    .meta-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin: 2px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6px 0;
+      font-size: 11px;
+    }
+    table th {
+      border-bottom: 1px solid #000;
+      padding: 3px 0;
+      text-align: left;
+    }
+    table td {
+      padding: 3px 0;
+      vertical-align: top;
+    }
+    .qr-center {
+      text-align: center;
+      margin: 10px 0;
+    }
+    .qr-center img {
+      width: 80px;
+      height: 80px;
+    }
+    .print-btn {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      padding: 8px;
+      background: #000;
+      color: #fff;
+      border: none;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    @media print {
+      body { background: transparent; padding: 0; }
+      .pos-ticket { box-shadow: none; border-radius: 0; width: 100%; }
+      .print-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="pos-ticket">
+    <div class="text-center">
+      <div class="title">LAWN CRAFT ERP</div>
+      <div class="subtitle">TURF & GROUNDS MANAGEMENT</div>
+      <div style="font-size: 10px;">PIN: P051829104A · VAT: VAT-99214-KE</div>
+      <div style="font-size: 10px;">TEL: +254 700 112 233 / (555) 0199</div>
+      <div style="font-size: 10px;">NAIROBI / NORTH ZONE OFFICE</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="meta-line">
+      <span>RECEIPT:</span>
+      <span class="bold" id="rcptNum">RCPT-0000</span>
+    </div>
+    <div class="meta-line">
+      <span>DATE/TIME:</span>
+      <span id="rcptDate">—</span>
+    </div>
+    <div class="meta-line">
+      <span>CLIENT:</span>
+      <span class="bold" id="rcptClient">Customer</span>
+    </div>
+    <div class="meta-line">
+      <span>PAY METHOD:</span>
+      <span id="rcptMethod">M-PESA ONLINE</span>
+    </div>
+    <div class="meta-line">
+      <span>REF/TXN:</span>
+      <span class="bold" id="rcptRef">QK89X4J21A</span>
+    </div>
+
+    <div class="double-divider"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ITEM / SCOPE</th>
+          <th class="text-center">QTY</th>
+          <th class="text-right">AMT</th>
+        </tr>
+      </thead>
+      <tbody id="posItemsBody">
+        <tr>
+          <td>Lawn Care Grounds Maintenance</td>
+          <td class="text-center">1</td>
+          <td class="text-right">$0.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="divider"></div>
+
+    <div class="meta-line">
+      <span>SUBTOTAL:</span>
+      <span id="posSubtotal">$0.00</span>
+    </div>
+    <div class="meta-line">
+      <span>TAX (16% VAT INCL):</span>
+      <span id="posTax">$0.00</span>
+    </div>
+    <div class="meta-line bold" style="font-size: 13px;">
+      <span>TOTAL PAID:</span>
+      <span id="posTotal">$0.00</span>
+    </div>
+    <div class="meta-line">
+      <span>BALANCE DUE:</span>
+      <span>$0.00</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="text-center" style="font-size: 10px; margin-top: 4px;">
+      <div>LOYALTY POINTS EARNED: <span class="bold" id="posPoints">12 PTS</span></div>
+      <div>THANK YOU FOR TRUSTING LAWN CRAFT!</div>
+      <div style="margin-top: 4px;">KEEP LAWN BEAUTIFUL & GREEN</div>
+    </div>
+
+    <div class="qr-center">
+      <img id="posQr" src="" alt="Tax QR">
+      <div style="font-size: 9px;">KRA E-TIMS FISCAL VERIFICATION</div>
+    </div>
+
+    <button class="print-btn" onclick="window.print()">PRINT 80MM POS RECEIPT</button>
+  </div>
+
+  <script>
+    const pathParts = window.location.pathname.split('/');
+    const receiptId = pathParts[pathParts.length - 2] === 'receipt' || pathParts[pathParts.length - 2] === 'thermal'
+      ? pathParts[pathParts.length - 2] 
+      : pathParts[pathParts.length - 1];
+
+    const targetId = pathParts.includes('thermal') ? pathParts[pathParts.indexOf('thermal') + 1] || pathParts[pathParts.indexOf('receipt') + 1] : receiptId;
+
+    async function loadPosTicket() {
+      try {
+        const id = targetId || 'INV-2026-001';
+        const res = await fetch(`/api/receipts/${encodeURIComponent(id)}`);
+        if (!res.ok) throw new Error('Receipt not found');
+        const data = await res.json();
+        
+        const inv = data.invoice;
+        const mpesa = data.mpesa_transaction;
+
+        document.getElementById('rcptNum').textContent = data.receipt_number;
+        document.getElementById('rcptDate').textContent = new Date(data.generated_at).toLocaleString();
+        document.getElementById('rcptClient').textContent = (inv.client_name || 'Customer').slice(0, 18);
+        document.getElementById('rcptMethod').textContent = mpesa ? 'M-PESA EXPRESS' : (inv.payment_method || 'CARD');
+        document.getElementById('rcptRef').textContent = mpesa?.mpesa_receipt_number || inv.id;
+
+        const tbody = document.getElementById('posItemsBody');
+        tbody.innerHTML = '';
+        if (data.items && data.items.length > 0) {
+          data.items.forEach(it => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${it.description.slice(0, 24)}</td>
+              <td class="text-center">${it.quantity}</td>
+              <td class="text-right">$${Number(it.amount).toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } else {
+          tbody.innerHTML = `
+            <tr>
+              <td>Turf Grounds Service</td>
+              <td class="text-center">1</td>
+              <td class="text-right">$${Number(inv.total_amount).toFixed(2)}</td>
+            </tr>
+          `;
+        }
+
+        const subtotal = inv.subtotal || (inv.total_amount * 0.84);
+        const tax = inv.tax || (inv.total_amount * 0.16);
+        document.getElementById('posSubtotal').textContent = `$${Number(subtotal).toFixed(2)}`;
+        document.getElementById('posTax').textContent = `$${Number(tax).toFixed(2)}`;
+        document.getElementById('posTotal').textContent = `$${Number(inv.amount_paid || inv.total_amount).toFixed(2)}`;
+        
+        const pts = Math.max(1, Math.floor((inv.amount_paid || inv.total_amount) / 10));
+        document.getElementById('posPoints').textContent = `${pts} PTS`;
+
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + '/receipt/' + (inv.id || id))}`;
+        document.getElementById('posQr').src = qrUrl;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadPosTicket();
+  </script>
+</body>
+</html>

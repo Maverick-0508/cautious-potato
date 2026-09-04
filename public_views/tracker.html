@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Job Status & Service Tracker | Lawn Craft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary: #15803d;
+      --primary-hover: #166534;
+      --primary-light: #f0fdf4;
+      --border: #e2e8f0;
+      --accent: #ca8a04;
+      --danger: #dc2626;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: #f8fafc;
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 32px 16px 64px;
+    }
+    .tracker-container {
+      max-width: 780px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .tracker-header {
+      background: linear-gradient(135deg, #14532d 0%, #15803d 100%);
+      color: #ffffff;
+      padding: 32px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .brand-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .order-id-badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .tracker-body {
+      padding: 36px;
+    }
+
+    /* Live Progress Stepper */
+    .stepper {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      margin: 20px 0 40px;
+    }
+    .stepper::before {
+      content: '';
+      position: absolute;
+      top: 20px;
+      left: 30px;
+      right: 30px;
+      height: 4px;
+      background: #e2e8f0;
+      z-index: 1;
+    }
+    .stepper-progress {
+      position: absolute;
+      top: 20px;
+      left: 30px;
+      height: 4px;
+      background: var(--primary);
+      z-index: 2;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    .step-item {
+      position: relative;
+      z-index: 3;
+      text-align: center;
+      flex: 1;
+    }
+    .step-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #cbd5e1;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 auto 10px;
+      transition: all 0.3s ease;
+    }
+    .step-item.active .step-circle {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+      box-shadow: 0 0 0 5px rgba(21, 128, 61, 0.2);
+    }
+    .step-item.completed .step-circle {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .step-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .step-item.active .step-label {
+      color: var(--primary);
+    }
+    .step-item.completed .step-label {
+      color: var(--text-main);
+    }
+
+    .status-highlight-card {
+      background: var(--primary-light);
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .status-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .status-info h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #14532d;
+      margin-bottom: 4px;
+    }
+    .status-info p {
+      font-size: 14px;
+      color: #166534;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 36px;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border);
+    }
+    .detail-item h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .detail-item p {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* Photo Proof Section */
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .photo-proof-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 36px;
+    }
+    .photo-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .photo-img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+      background: #e2e8f0;
+    }
+    .photo-meta {
+      padding: 14px 16px;
+    }
+    .photo-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+    .tag-before { background: #fed7aa; color: #9a3412; }
+    .tag-after { background: #bbf7d0; color: #166534; }
+    .photo-caption {
+      font-size: 13px;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+    .photo-timestamp {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .help-box {
+      background: #f1f5f9;
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .help-info h4 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .help-info p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .help-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-contact {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-contact.btn-wa {
+      background: #25d366;
+      color: #ffffff;
+      border-color: #25d366;
+    }
+    .btn-contact:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="tracker-container" id="trackerContainer">
+    <div class="tracker-header">
+      <div class="brand-title">
+        <i class="fa-solid fa-seedling"></i> Lawn Craft
+      </div>
+      <div class="order-id-badge" id="orderIdBadge">Job #Loading…</div>
+    </div>
+
+    <div class="tracker-body">
+      <!-- 5-Stage Stepper -->
+      <div class="stepper">
+        <div class="stepper-progress" id="stepperProgress"></div>
+        <div class="step-item" id="step-1">
+          <div class="step-circle"><i class="fa-solid fa-receipt"></i></div>
+          <div class="step-label">Received</div>
+        </div>
+        <div class="step-item" id="step-2">
+          <div class="step-circle"><i class="fa-solid fa-calendar-check"></i></div>
+          <div class="step-label">Scheduled</div>
+        </div>
+        <div class="step-item" id="step-3">
+          <div class="step-circle"><i class="fa-solid fa-truck"></i></div>
+          <div class="step-label">Dispatched</div>
+        </div>
+        <div class="step-item" id="step-4">
+          <div class="step-circle"><i class="fa-solid fa-person-digging"></i></div>
+          <div class="step-label">In Progress</div>
+        </div>
+        <div class="step-item" id="step-5">
+          <div class="step-circle"><i class="fa-solid fa-circle-check"></i></div>
+          <div class="step-label">Verified</div>
+        </div>
+      </div>
+
+      <!-- Current Status Highlight -->
+      <div class="status-highlight-card">
+        <div class="status-icon" id="statusIcon">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div class="status-info">
+          <h3 id="currentStatusTitle">Loading Job Status…</h3>
+          <p id="currentStatusDesc">Fetching live dispatch and technician telemetry…</p>
+        </div>
+      </div>
+
+      <!-- Detail Grid -->
+      <div class="detail-grid">
+        <div class="detail-item">
+          <h4>Client Name</h4>
+          <p id="clientName">—</p>
+        </div>
+        <div class="detail-item">
+          <h4>Service Location</h4>
+          <p id="propertyAddress">—</p>
+        </div>
+        <div class="detail-item">
+          <h4>Service Scope</h4>
+          <p id="serviceType">—</p>
+        </div>
+        <div class="detail-item">
+          <h4>Target / Arrival Time</h4>
+          <p id="targetDate">Scheduled on Dispatch</p>
+        </div>
+      </div>
+
+      <!-- Before & After Photo Proof of Work -->
+      <div id="photosSection" style="display: none;">
+        <h3 class="section-title"><i class="fa-solid fa-camera"></i> Field Proof of Work (Before & After)</h3>
+        <div class="photo-proof-grid" id="photoGrid">
+          <!-- Photo cards injected here -->
+        </div>
+      </div>
+
+      <!-- Crew / Supervisor Notes if available -->
+      <div id="crewNotesBox" style="display:none; background:#fafaf9; border-left:4px solid var(--primary); padding:16px 20px; border-radius:0 8px 8px 0; margin-bottom:32px;">
+        <h5 style="font-size:14px; font-weight:700; margin-bottom:4px;"><i class="fa-solid fa-clipboard-user"></i> Supervisor & Crew Notes</h5>
+        <p id="crewNotesText" style="font-size:13px; color:var(--text-muted);"></p>
+      </div>
+
+      <!-- Help & Contact Box -->
+      <div class="help-box">
+        <div class="help-info">
+          <h4>Need to update gate access or instructions?</h4>
+          <p>Our supervisor dispatch desk is active 7:00 AM – 6:00 PM.</p>
+        </div>
+        <div class="help-actions">
+          <a href="tel:5552345678" class="btn-contact">
+            <i class="fa-solid fa-phone"></i> Call Dispatch
+          </a>
+          <a href="https://wa.me/15552345678?text=Hello%20Lawn%20Craft%20Supervisor" target="_blank" class="btn-contact btn-wa" id="waBtn">
+            <i class="fa-brands fa-whatsapp"></i> WhatsApp
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const pathParts = window.location.pathname.split('/');
+    const orderId = pathParts[pathParts.length - 1] || '101';
+
+    async function loadTracker() {
+      try {
+        const res = await fetch(`/api/public/track/${encodeURIComponent(orderId)}`);
+        if (!res.ok) throw new Error('Work order not found');
+        const data = await res.json();
+        renderTracker(data);
+      } catch (err) {
+        document.getElementById('trackerContainer').innerHTML = `
+          <div style="padding: 60px 40px; text-align: center;">
+            <i class="fa-solid fa-circle-exclamation" style="font-size: 48px; color: var(--danger); margin-bottom: 16px;"></i>
+            <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Order Not Found</h2>
+            <p style="color: var(--text-muted); margin-bottom: 24px;">Could not retrieve live tracker for job #${orderId}.</p>
+            <a href="/" class="btn-contact">Return to Home</a>
+          </div>
+        `;
+      }
+    }
+
+    function renderTracker(data) {
+      const wo = data.work_order;
+      const photos = data.photos || [];
+
+      document.title = `Tracking #${wo.id} - ${wo.title} | Lawn Craft`;
+      document.getElementById('orderIdBadge').textContent = `Job #${wo.id}`;
+      document.getElementById('clientName').textContent = wo.client_name;
+      document.getElementById('propertyAddress').textContent = wo.property_address;
+      document.getElementById('serviceType').textContent = wo.service_type || wo.title;
+      
+      if (wo.target_date) {
+        document.getElementById('targetDate').textContent = new Date(wo.target_date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      }
+
+      if (wo.supervisor_notes) {
+        document.getElementById('crewNotesBox').style.display = 'block';
+        document.getElementById('crewNotesText').textContent = wo.supervisor_notes;
+      }
+
+      // Progress Stepper mapping
+      // status: 'incoming', 'reviewed', 'planned', 'in_progress', 'completed', 'verified'
+      const statusMap = {
+        'incoming': { step: 1, title: 'Consultation & Request Received', desc: 'Our supervisor is reviewing your property dimensions and preparing the crew dispatch plan.' },
+        'reviewed': { step: 2, title: 'Job Reviewed & In Schedule Queue', desc: 'Service parameters verified. Assigned to North Field Territory schedule.' },
+        'planned': { step: 2, title: 'Scheduled for Field Dispatch', desc: 'Technicians and equipment reserved for upcoming arrival window.' },
+        'in_progress': { step: 4, title: 'Crew On Site & Work In Progress', desc: 'Field technicians are actively performing services on your property.' },
+        'completed': { step: 4, title: 'Work Finished — Awaiting Final Inspection', desc: 'Technicians completed service tasks. Supervisor quality check in progress.' },
+        'verified': { step: 5, title: 'Quality Verified & Job Completed', desc: 'Work order passed quality verification. Thank you for choosing Lawn Craft!' }
+      };
+
+      const cur = statusMap[wo.status] || { step: 1, title: `Status: ${wo.status}`, desc: 'Processing your work order.' };
+      document.getElementById('currentStatusTitle').textContent = cur.title;
+      document.getElementById('currentStatusDesc').textContent = cur.desc;
+
+      // Update Stepper
+      const stepPct = ((cur.step - 1) / 4) * 100;
+      document.getElementById('stepperProgress').style.width = `${stepPct}%`;
+
+      for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById(`step-${i}`);
+        if (i < cur.step) {
+          el.className = 'step-item completed';
+        } else if (i === cur.step) {
+          el.className = 'step-item active';
+        } else {
+          el.className = 'step-item';
+        }
+      }
+
+      // Photos
+      if (photos.length > 0) {
+        document.getElementById('photosSection').style.display = 'block';
+        document.getElementById('photoGrid').innerHTML = photos.map(p => `
+          <div class="photo-card">
+            <img src="${p.photo_url}" alt="${p.photo_type} proof" class="photo-img" onerror="this.src='https://images.unsplash.com/photo-1558904541-efa843a96f01?w=800&auto=format&fit=crop'">
+            <div class="photo-meta">
+              <span class="photo-tag ${p.photo_type === 'before' ? 'tag-before' : 'tag-after'}">${p.photo_type}</span>
+              <div class="photo-caption">${p.caption || (p.photo_type === 'before' ? 'Prior to service start' : 'Post-service manicured grounds')}</div>
+              <div class="photo-timestamp">${new Date(p.uploaded_at).toLocaleString()}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // WhatsApp link
+      document.getElementById('waBtn').href = `https://wa.me/15552345678?text=Hello%20Supervisor,%20regarding%20Work%20Order%20%23${wo.id}%20at%20${encodeURIComponent(wo.property_address)}`;
+    }
+
+    loadTracker();
+  </script>
+</body>
+</html>

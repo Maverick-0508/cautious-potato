@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instant Lawn Care Pricing Calculator | Lawn Craft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --primary: #15803d;
+      --primary-hover: #166534;
+      --primary-light: #f0fdf4;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: #f8fafc;
+      color: var(--text);
+      line-height: 1.5;
+      padding: 16px;
+    }
+    .calc-card {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+    .calc-header {
+      background: linear-gradient(135deg, #14532d 0%, #15803d 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+    }
+    .calc-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .calc-header p {
+      font-size: 13px;
+      color: #bbf7d0;
+      margin-top: 4px;
+    }
+    .calc-body {
+      padding: 24px 28px;
+    }
+
+    .form-section {
+      margin-bottom: 24px;
+    }
+    .form-section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .size-val {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+    .slider-wrap {
+      margin: 12px 0;
+    }
+    input[type=range] {
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      background: #e2e8f0;
+      outline: none;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .presets-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .preset-btn {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .preset-btn:hover { background: #e2e8f0; }
+
+    /* Service Checkboxes */
+    .service-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 500px) {
+      .service-grid { grid-template-columns: 1fr; }
+    }
+    .service-option {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: all 0.15s ease;
+    }
+    .service-option:hover {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+    .service-option input {
+      margin-top: 3px;
+      accent-color: var(--primary);
+    }
+    .service-option-text strong {
+      font-size: 13px;
+      display: block;
+    }
+    .service-option-text span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Frequency Selector */
+    .freq-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .freq-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+    }
+    .freq-card.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .freq-card strong {
+      display: block;
+      font-size: 13px;
+    }
+    .freq-card span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .freq-badge {
+      position: absolute;
+      top: -8px;
+      right: 6px;
+      background: #ca8a04;
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+
+    /* Price Result Banner */
+    .price-box {
+      background: #14532d;
+      color: #ffffff;
+      border-radius: 10px;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 24px 0;
+    }
+    .price-left h4 {
+      font-size: 13px;
+      color: #bbf7d0;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .price-left p {
+      font-size: 12px;
+      color: #86efac;
+    }
+    .price-right {
+      text-align: right;
+    }
+    .price-amount {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .price-period {
+      font-size: 12px;
+      color: #bbf7d0;
+    }
+
+    /* Booking Form */
+    .intake-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 500px) {
+      .intake-grid { grid-template-columns: 1fr; }
+    }
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .btn-submit {
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-submit:hover { background: var(--primary-hover); }
+
+    .embed-trigger {
+      text-align: center;
+      margin-top: 16px;
+    }
+    .btn-embed {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="calc-card">
+    <div class="calc-header">
+      <h2><i class="fa-solid fa-calculator"></i> Instant Lawn Care Quote Calculator</h2>
+      <p>Select your property size and customized services to get an accurate estimate in seconds.</p>
+    </div>
+
+    <div class="calc-body">
+      <!-- Property Size Slider -->
+      <div class="form-section">
+        <h3>
+          <span>1. Property & Turf Size</span>
+          <span class="size-val" id="sizeDisplay">5,000 sq ft</span>
+        </h3>
+        <div class="slider-wrap">
+          <input type="range" id="sizeSlider" min="1000" max="40000" step="500" value="5000">
+        </div>
+        <div class="presets-row">
+          <button type="button" class="preset-btn" onclick="setSize(2500)">Townhome (2.5k sq ft)</button>
+          <button type="button" class="preset-btn" onclick="setSize(6000)">Suburban (6k sq ft)</button>
+          <button type="button" class="preset-btn" onclick="setSize(12000)">Large Lot (12k sq ft)</button>
+          <button type="button" class="preset-btn" onclick="setSize(25000)">Commercial / Estate</button>
+        </div>
+      </div>
+
+      <!-- Services -->
+      <div class="form-section">
+        <h3><span>2. Service Requirements</span></h3>
+        <div class="service-grid">
+          <label class="service-option">
+            <input type="checkbox" name="services" value="mow" checked onchange="calculate()">
+            <div class="service-option-text">
+              <strong>Mowing & Edge Trimming</strong>
+              <span>Clean precision cut + hardscape blowing</span>
+            </div>
+          </label>
+          <label class="service-option">
+            <input type="checkbox" name="services" value="aeration" onchange="calculate()">
+            <div class="service-option-text">
+              <strong>Core Aeration & Overseeding</strong>
+              <span>Decompaction + premium fescue seed</span>
+            </div>
+          </label>
+          <label class="service-option">
+            <input type="checkbox" name="services" value="fertilizer" checked onchange="calculate()">
+            <div class="service-option-text">
+              <strong>Fertilizer & Weed Control</strong>
+              <span>Organic slow-release nutrient feeding</span>
+            </div>
+          </label>
+          <label class="service-option">
+            <input type="checkbox" name="services" value="shrub" onchange="calculate()">
+            <div class="service-option-text">
+              <strong>Shrub & Bed Maintenance</strong>
+              <span>Hedge shaping and weed suppression</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Frequency -->
+      <div class="form-section">
+        <h3><span>3. Service Frequency</span></h3>
+        <div class="freq-grid">
+          <div class="freq-card" onclick="setFreq('onetime')">
+            <strong>One-Time</strong>
+            <span>Standard Rate</span>
+          </div>
+          <div class="freq-card" onclick="setFreq('biweekly')">
+            <span class="freq-badge">Save 15%</span>
+            <strong>Bi-Weekly</strong>
+            <span>Every 2 Weeks</span>
+          </div>
+          <div class="freq-card active" onclick="setFreq('weekly')">
+            <span class="freq-badge">Save 20%</span>
+            <strong>Weekly</strong>
+            <span>Best Results</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Price Box -->
+      <div class="price-box">
+        <div class="price-left">
+          <h4 id="estTier">Weekly Maintenance Care</h4>
+          <p id="estTime">Est. Crew Time: 45 - 60 minutes</p>
+        </div>
+        <div class="price-right">
+          <div class="price-amount" id="priceDisplay">$52.00</div>
+          <div class="price-period" id="pricePeriod">per visit (incl. tax)</div>
+        </div>
+      </div>
+
+      <!-- Quick Booking Form -->
+      <form id="bookingForm" onsubmit="submitBooking(event)">
+        <div class="form-section" style="margin-bottom: 12px;">
+          <h3><span>4. Lock In Rate & Schedule Booking</span></h3>
+          <div class="intake-grid">
+            <input type="text" class="form-input" id="clientName" placeholder="Your Full Name *" required>
+            <input type="tel" class="form-input" id="clientPhone" placeholder="Phone Number *" required>
+            <input type="email" class="form-input" id="clientEmail" placeholder="Email Address *" required>
+            <input type="text" class="form-input" id="propertyAddress" placeholder="Property Street Address *" required>
+          </div>
+          <input type="text" class="form-input" id="clientNotes" placeholder="Special instructions (gate codes, dog, lawn priorities)" style="margin-bottom:12px;">
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <i class="fa-solid fa-calendar-check"></i> Book Now & Send to Dispatch
+        </button>
+      </form>
+
+      <div class="embed-trigger">
+        <button type="button" class="btn-embed" onclick="showEmbedModal()">
+          <i class="fa-solid fa-code"></i> Embed this widget on your website (lawncraft.vercel.app)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentFreq = 'weekly';
+    let currentSize = 5000;
+    let currentPrice = 52.00;
+
+    const slider = document.getElementById('sizeSlider');
+    slider.addEventListener('input', (e) => {
+      currentSize = parseInt(e.target.value);
+      document.getElementById('sizeDisplay').textContent = currentSize.toLocaleString() + ' sq ft';
+      calculate();
+    });
+
+    function setSize(sqft) {
+      slider.value = sqft;
+      currentSize = sqft;
+      document.getElementById('sizeDisplay').textContent = sqft.toLocaleString() + ' sq ft';
+      calculate();
+    }
+
+    function setFreq(f) {
+      currentFreq = f;
+      document.querySelectorAll('.freq-card').forEach((card, idx) => {
+        card.classList.remove('active');
+        if ((f === 'onetime' && idx === 0) || (f === 'biweekly' && idx === 1) || (f === 'weekly' && idx === 2)) {
+          card.classList.add('active');
+        }
+      });
+      calculate();
+    }
+
+    function calculate() {
+      let base = 0;
+      const services = Array.from(document.querySelectorAll('input[name="services"]:checked')).map(el => el.value);
+
+      if (services.includes('mow')) {
+        base += 38 + (currentSize / 1000) * 3.2;
+      }
+      if (services.includes('fertilizer')) {
+        base += 24 + (currentSize / 1000) * 2.5;
+      }
+      if (services.includes('aeration')) {
+        base += 65 + (currentSize / 1000) * 5.0;
+      }
+      if (services.includes('shrub')) {
+        base += 35 + (currentSize / 1000) * 1.8;
+      }
+
+      if (base === 0) base = 35; // Minimum visit
+
+      // Frequency discount
+      let discount = 0;
+      if (currentFreq === 'weekly') discount = 0.20;
+      else if (currentFreq === 'biweekly') discount = 0.15;
+
+      const perVisit = base * (1 - discount);
+      currentPrice = Math.round(perVisit);
+
+      document.getElementById('priceDisplay').textContent = `$${currentPrice.toFixed(2)}`;
+      
+      const periodMap = {
+        'weekly': 'per weekly visit',
+        'biweekly': 'per bi-weekly visit',
+        'onetime': 'one-time service price'
+      };
+      document.getElementById('pricePeriod').textContent = periodMap[currentFreq];
+
+      // Estimated crew time
+      const mins = Math.max(30, Math.round(25 + (currentSize / 1000) * 4));
+      document.getElementById('estTime').textContent = `Est. Crew Duration: ${mins} - ${mins + 20} mins`;
+    }
+
+    async function submitBooking(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Confirming Booking…';
+
+      const payload = {
+        name: document.getElementById('clientName').value.trim(),
+        phone: document.getElementById('clientPhone').value.trim(),
+        email: document.getElementById('clientEmail').value.trim(),
+        property_address: document.getElementById('propertyAddress').value.trim(),
+        notes: document.getElementById('clientNotes').value.trim(),
+        property_size: currentSize,
+        frequency: currentFreq,
+        estimated_price: currentPrice
+      };
+
+      try {
+        const res = await fetch('/api/public/calculator/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Failed to submit booking');
+
+        document.querySelector('.calc-card').innerHTML = `
+          <div style="padding: 48px 32px; text-align: center;">
+            <i class="fa-solid fa-circle-check" style="font-size: 52px; color: #16a34a; margin-bottom: 16px;"></i>
+            <h2 style="font-size: 24px; font-weight: 800; color: #14532d; margin-bottom: 8px;">Booking Confirmed!</h2>
+            <p style="color: var(--text-muted); font-size: 15px; margin-bottom: 24px;">
+              Thank you <strong>${payload.name}</strong>! Your work order #<strong>${result.work_order_id}</strong> has been logged directly with our field dispatch team.
+            </p>
+            <a href="/track/${result.work_order_id}" style="background:var(--primary); color:#ffffff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-location-crosshairs"></i> Track Live Job Status
+            </a>
+          </div>
+        `;
+      } catch (err) {
+        alert('Booking Error: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-calendar-check"></i> Book Now & Send to Dispatch';
+      }
+    }
+
+    function showEmbedModal() {
+      const code = `<iframe src="${window.location.origin}/widget/calculator" width="100%" height="780" style="border:none; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.08);" title="Lawn Craft Pricing Calculator"></iframe>`;
+      prompt('Copy this 1-line HTML snippet and paste it anywhere into lawncraft.vercel.app:', code);
+    }
+
+    calculate();
+  </script>
+</body>
+</html>

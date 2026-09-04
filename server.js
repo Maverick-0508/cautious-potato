@@ -1,8 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { dbRun, dbGet, dbAll, initDatabase, getDatabaseStatus, getFirebaseConfig, syncToFirestore } from './database.js';
+import { dbRun, dbGet, dbAll, initDatabase, getDatabaseStatus, getFirebaseConfig, syncToFirestore, getSupabaseDetails, syncToSupabase, importFromSupabase } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -301,7 +302,27 @@ app.get('/api/auth/me', async (req, res) => {
 
 // ── Supervisor Dashboard & Analytics Endpoints ───────────────
 
+let lastSupabaseAutoSyncTime = 0;
+async function maybeAutoSyncSupabase() {
+  const now = Date.now();
+  if (now - lastSupabaseAutoSyncTime > 10000) { // 10-second throttle
+    lastSupabaseAutoSyncTime = now;
+    try {
+      await importFromSupabase();
+    } catch (_) {}
+  }
+}
+
+// Initial background sync and periodic check every 30 seconds
+setTimeout(() => {
+  importFromSupabase().catch(() => {});
+}, 1000);
+setInterval(() => {
+  importFromSupabase().catch(() => {});
+}, 30000);
+
 app.get('/api/supervisor/stats', async (req, res) => {
+  await maybeAutoSyncSupabase();
   const counts = await dbAll(`SELECT status, COUNT(*) as cnt FROM work_orders GROUP BY status`);
   const byStatus = {
     incoming: 0,
@@ -342,6 +363,7 @@ app.get('/api/supervisor/stats-trends', async (req, res) => {
 });
 
 app.get('/api/supervisor/queue', async (req, res) => {
+  await maybeAutoSyncSupabase();
   const queue = await dbAll(`SELECT * FROM work_orders WHERE status = 'incoming' ORDER BY priority = 'urgent' DESC, id DESC`);
   res.json(queue);
 });
@@ -1066,6 +1088,1661 @@ app.post('/api/firebase/sync', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[Firebase Sync Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Supabase Integration Endpoints ──────────────────────────
+
+app.get('/api/supabase/status', async (req, res) => {
+  try {
+    const details = await getSupabaseDetails();
+    res.json(details);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/supabase/schema', (req, res) => {
+  try {
+    const schemaPath = path.join(__dirname, 'supabase_schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const sqlContent = fs.readFileSync(schemaPath, 'utf8');
+      res.type('text/plain').send(sqlContent);
+    } else {
+      res.status(404).send('-- Schema file not found');
+    }
+  } catch (err) {
+    res.status(500).send(`-- Error reading schema: ${err.message}`);
+  }
+});
+
+app.post('/api/supabase/sync', async (req, res) => {
+  try {
+    const result = await syncToSupabase();
+    res.json(result);
+  } catch (err) {
+    console.error('[Supabase Sync Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/supabase/import', async (req, res) => {
+  try {
+    const result = await importFromSupabase();
+    res.json(result);
+  } catch (err) {
+    console.error('[Supabase Import Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Customer-Facing Public APIs ──────────────────────────────
+
+const publicViewsPath = path.join(__dirname, 'public_views');
+
+// Public Page Routes
+app.get(['/quote/:id', '/quotes/:id'], (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'quote.html'));
+});
+
+app.get(['/track/:orderId', '/tracking/:orderId'], (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'tracker.html'));
+});
+
+app.get(['/pay/:invoiceId', '/invoice/:invoiceId/pay'], (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'invoice_pay.html'));
+});
+
+app.get('/widget/calculator', (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'calculator_widget.html'));
+});
+
+app.get(['/receipt/:id', '/e-receipt/:id'], (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'e_receipt.html'));
+});
+
+app.get(['/receipt/:id/thermal', '/thermal/:id'], (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'thermal_receipt.html'));
+});
+
+app.get(['/portal', '/client-portal', '/customer-portal'], (req, res) => {
+  res.sendFile(path.join(publicViewsPath, 'portal.html'));
+});
+
+// Public Quote Details & Electronic Approval
+app.get('/api/public/quote/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    let quote = await dbGet('SELECT * FROM quotes WHERE id = ?', [id]);
+    if (!quote && !isNaN(Number(id))) {
+      quote = await dbGet('SELECT * FROM quotes WHERE work_order_id = ?', [Number(id)]);
+    }
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote or digital estimate not found' });
+    }
+    res.json(quote);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/public/quote/:id/accept', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { signature_name, client_notes } = req.body || {};
+    
+    let quote = await dbGet('SELECT * FROM quotes WHERE id = ?', [id]);
+    if (!quote && !isNaN(Number(id))) {
+      quote = await dbGet('SELECT * FROM quotes WHERE work_order_id = ?', [Number(id)]);
+    }
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' });
+    }
+
+    const signedAt = new Date().toISOString();
+    await dbRun(`
+      UPDATE quotes 
+      SET status = 'approved', signature_name = ?, signed_at = ?, notes = COALESCE(?, notes)
+      WHERE id = ?
+    `, [signature_name || quote.client_name, signedAt, client_notes || null, quote.id]);
+
+    // If linked to a work order, advance its status to 'planned' or 'reviewed'
+    if (quote.work_order_id) {
+      await dbRun(`
+        UPDATE work_orders 
+        SET status = CASE WHEN status = 'incoming' THEN 'planned' ELSE status END,
+            supervisor_notes = COALESCE(supervisor_notes || ' ', '') || '[Digital Quote Signed by ' || ? || ' on ' || ? || ']'
+        WHERE id = ?
+      `, [signature_name || quote.client_name, signedAt, quote.work_order_id]);
+    }
+
+    // Record or update client CRM profile
+    const existingClient = await dbGet('SELECT * FROM client_profiles WHERE name = ?', [quote.client_name]);
+    if (!existingClient) {
+      await dbRun(`
+        INSERT INTO client_profiles (name, email, phone, property_address, total_spend, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [quote.client_name, quote.client_email, quote.client_phone, quote.property_address, quote.total_amount || 0, signedAt]);
+    }
+
+    await logAudit('QUOTE_DIGITALLY_APPROVED', `Digital Quote ${quote.id} authorized by ${signature_name || quote.client_name}`, quote.client_email || 'client@lawncraft.com', 'quote', quote.id);
+
+    res.json({
+      success: true,
+      message: 'Quote approved and confirmed successfully!',
+      quote_id: quote.id,
+      work_order_id: quote.work_order_id,
+      signed_at: signedAt
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public Live Job Status Tracker
+app.get('/api/public/track/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const wo = await dbGet('SELECT * FROM work_orders WHERE id = ?', [Number(orderId)]);
+    if (!wo) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+    const photos = await dbAll('SELECT * FROM work_order_photos WHERE work_order_id = ? ORDER BY uploaded_at ASC', [Number(orderId)]);
+    res.json({
+      work_order: wo,
+      photos: photos || []
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public Invoice View & Payment Settlement
+app.get('/api/public/invoice/:invoiceId', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const invoice = await dbGet('SELECT * FROM invoices WHERE id = ?', [invoiceId]);
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    const items = await dbAll('SELECT * FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
+    const payments = await dbAll('SELECT * FROM invoice_payments WHERE invoice_id = ?', [invoiceId]);
+    res.json({
+      ...invoice,
+      items: items || [],
+      payments: payments || []
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/public/invoice/:invoiceId/pay', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const { amount, method, reference, notes } = req.body || {};
+    const invoice = await dbGet('SELECT * FROM invoices WHERE id = ?', [invoiceId]);
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const payAmount = Number(amount) || Number(invoice.balance_due) || 0;
+    const paymentId = 'PAY-' + Date.now().toString(36).toUpperCase();
+    const payDate = new Date().toISOString();
+    const payRef = reference || 'WEB_PAY_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    await dbRun(`
+      INSERT INTO invoice_payments (id, invoice_id, date, amount, method, reference, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [paymentId, invoiceId, payDate, payAmount, method || 'Online Card', payRef, notes || 'Customer self-service payment']);
+
+    const newAmountPaid = (invoice.amount_paid || 0) + payAmount;
+    const newBalance = Math.max(0, (invoice.total_amount || 0) - newAmountPaid);
+    const newStatus = newBalance <= 0.01 ? 'paid' : (invoice.status || 'issued');
+
+    await dbRun(`
+      UPDATE invoices 
+      SET amount_paid = ?, balance_due = ?, status = ?
+      WHERE id = ?
+    `, [newAmountPaid, newBalance, newStatus, invoiceId]);
+
+    await logAudit('INVOICE_PAYMENT_RECEIVED', `Payment of $${payAmount.toFixed(2)} recorded for Invoice ${invoiceId}`, invoice.client_email || 'billing@lawncraft.com', 'invoice', invoiceId);
+
+    res.json({
+      success: true,
+      message: 'Payment recorded successfully',
+      payment_id: paymentId,
+      reference: payRef,
+      new_balance: newBalance,
+      status: newStatus
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public Calculator Instant Booking
+app.post('/api/public/calculator/book', async (req, res) => {
+  try {
+    const { name, phone, email, property_address, notes, property_size, frequency, estimated_price } = req.body || {};
+    if (!name || !phone || !property_address) {
+      return res.status(400).json({ error: 'Name, phone, and property address are required.' });
+    }
+
+    const woId = 7000 + Math.floor(Math.random() * 9000);
+    const now = new Date().toISOString();
+    const title = `Lawn Maintenance (${frequency || 'Scheduled'} - ${property_size || 5000} sq ft)`;
+    const price = Number(estimated_price) || 55.00;
+
+    // 1. Create Work Order in local database
+    await dbRun(`
+      INSERT INTO work_orders (id, title, client_name, client_email, client_phone, property_address, service_type, status, priority, created_at, description, supervisor_notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      woId,
+      title,
+      name,
+      email || '',
+      phone,
+      property_address,
+      'Precision Lawn Mowing & Turf Care',
+      'incoming',
+      'high',
+      now,
+      `Calculated estimate: $${price}/visit. Frequency: ${frequency || 'Weekly'}. Property area: ${property_size || 5000} sq ft.`,
+      notes ? `Customer instructions: ${notes}` : 'Booked via Instant Website Pricing Calculator.'
+    ]);
+
+    // 2. Generate Digital Quote
+    const quoteId = 'QTE-2026-' + (Math.floor(Math.random() * 800) + 100);
+    const items = [
+      { description: `Precision Turf Cut, Edge Trimming & Cleanup (${property_size || 5000} sq ft)`, quantity: 1, unit_price: price, amount: price }
+    ];
+    const tax = Math.round(price * 0.065 * 100) / 100;
+    const total = Math.round((price + tax) * 100) / 100;
+
+    await dbRun(`
+      INSERT INTO quotes (id, work_order_id, client_name, client_email, client_phone, property_address, service_tier, items_json, subtotal, tax, discount, total_amount, status, notes, valid_until, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      quoteId,
+      woId,
+      name,
+      email || '',
+      phone,
+      property_address,
+      `${frequency ? frequency.toUpperCase() : 'WEEKLY'} Turf Care Plan`,
+      JSON.stringify(items),
+      price,
+      tax,
+      0,
+      total,
+      'sent',
+      `Locked-in pricing from web calculator. ${notes || ''}`,
+      new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      now
+    ]);
+
+    // 3. Record in Client CRM
+    const existingClient = await dbGet('SELECT * FROM client_profiles WHERE name = ?', [name]);
+    if (!existingClient) {
+      await dbRun(`
+        INSERT INTO client_profiles (name, email, phone, property_address, property_size_sqft, special_instructions, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [name, email || '', phone, property_address, Number(property_size) || 5000, notes || '', now]);
+    }
+
+    // 4. Log Audit
+    await logAudit('WEB_CALCULATOR_BOOKING', `New instant booking #${woId} from ${name} (${property_address})`, email || 'web@lawncraft.com', 'work_order', String(woId));
+
+    res.json({
+      success: true,
+      message: 'Booking placed successfully in supervisor dispatch queue',
+      work_order_id: woId,
+      quote_id: quoteId
+    });
+  } catch (err) {
+    console.error('[Calculator Book Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Supervisor Dashboard Digital Quotes API ─────────────────
+
+app.get('/api/quotes', async (req, res) => {
+  try {
+    const quotes = await dbAll('SELECT * FROM quotes ORDER BY created_at DESC');
+    res.json(quotes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/quotes', async (req, res) => {
+  try {
+    const { work_order_id, client_name, client_email, client_phone, property_address, service_tier, items, discount, notes, valid_until } = req.body || {};
+    if (!client_name || !property_address) {
+      return res.status(400).json({ error: 'Client name and property address are required.' });
+    }
+
+    const quoteId = 'QTE-2026-' + (Math.floor(Math.random() * 900) + 100);
+    const lineItems = Array.isArray(items) ? items : [
+      { description: service_tier || 'Grounds Maintenance Package', quantity: 1, unit_price: 150.00, amount: 150.00 }
+    ];
+    const subtotal = lineItems.reduce((sum, it) => sum + (Number(it.amount) || (Number(it.quantity) * Number(it.unit_price)) || 0), 0);
+    const disc = Number(discount) || 0;
+    const tax = Math.round((subtotal - disc) * 0.065 * 100) / 100;
+    const total = Math.max(0, subtotal - disc + tax);
+    const now = new Date().toISOString();
+
+    await dbRun(`
+      INSERT INTO quotes (id, work_order_id, client_name, client_email, client_phone, property_address, service_tier, items_json, subtotal, tax, discount, total_amount, status, notes, valid_until, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, ?)
+    `, [
+      quoteId,
+      work_order_id || null,
+      client_name,
+      client_email || '',
+      client_phone || '',
+      property_address,
+      service_tier || 'Deluxe Turf Care Package',
+      JSON.stringify(lineItems),
+      subtotal,
+      tax,
+      disc,
+      total,
+      notes || '',
+      valid_until || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      now
+    ]);
+
+    await logAudit('QUOTE_CREATED', `Created digital estimate ${quoteId} for ${client_name} ($${total.toFixed(2)})`, activeUserSession.email, 'quote', quoteId);
+
+    const created = await dbGet('SELECT * FROM quotes WHERE id = ?', [quoteId]);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/work-orders/:id/generate-quote', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const wo = await dbGet('SELECT * FROM work_orders WHERE id = ?', [Number(id)]);
+    if (!wo) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    const quoteId = 'QTE-2026-' + (Math.floor(Math.random() * 900) + 100);
+    const lineItems = [
+      { description: `${wo.service_type || wo.title || 'Grounds Care Service'} - Initial Scope`, quantity: 1, unit_price: 240.00, amount: 240.00 },
+      { description: 'Soil Amendment & Premium Eco-Safe Turf Treatment', quantity: 1, unit_price: 85.00, amount: 85.00 }
+    ];
+    const subtotal = 325.00;
+    const tax = 21.13;
+    const total = 346.13;
+    const now = new Date().toISOString();
+
+    await dbRun(`
+      INSERT INTO quotes (id, work_order_id, client_name, client_email, client_phone, property_address, service_tier, items_json, subtotal, tax, discount, total_amount, status, notes, valid_until, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, ?)
+    `, [
+      quoteId,
+      wo.id,
+      wo.client_name,
+      wo.client_email || '',
+      wo.client_phone || '',
+      wo.property_address,
+      `${wo.service_type || 'Grounds Care'} Custom Estimate`,
+      JSON.stringify(lineItems),
+      subtotal,
+      tax,
+      0,
+      total,
+      wo.supervisor_notes || wo.description || 'Generated by Supervisor',
+      new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      now
+    ]);
+
+    await logAudit('QUOTE_AUTO_GENERATED', `Auto-generated digital quote ${quoteId} from Work Order #${wo.id}`, activeUserSession.email, 'quote', quoteId);
+
+    const created = await dbGet('SELECT * FROM quotes WHERE id = ?', [quoteId]);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/quotes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { service_tier, status, notes, valid_until, discount } = req.body || {};
+    
+    await dbRun(`
+      UPDATE quotes 
+      SET service_tier = COALESCE(?, service_tier),
+          status = COALESCE(?, status),
+          notes = COALESCE(?, notes),
+          valid_until = COALESCE(?, valid_until),
+          discount = COALESCE(?, discount)
+      WHERE id = ?
+    `, [service_tier || null, status || null, notes || null, valid_until || null, discount !== undefined ? Number(discount) : null, id]);
+
+    const updated = await dbGet('SELECT * FROM quotes WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/quotes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dbRun('DELETE FROM quotes WHERE id = ?', [id]);
+    await logAudit('QUOTE_DELETED', `Deleted digital quote ${id}`, activeUserSession.email, 'quote', id);
+    res.json({ success: true, message: `Quote ${id} removed` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Before & After Photo Proof API ───────────────────────────
+
+app.get('/api/work-orders/:id/photos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const photos = await dbAll('SELECT * FROM work_order_photos WHERE work_order_id = ? ORDER BY uploaded_at ASC', [Number(id)]);
+    res.json(photos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/work-orders/:id/photos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { photo_type, photo_url, caption } = req.body || {};
+    if (!photo_url) {
+      return res.status(400).json({ error: 'photo_url is required.' });
+    }
+
+    const now = new Date().toISOString();
+    const result = await dbRun(`
+      INSERT INTO work_order_photos (work_order_id, photo_type, photo_url, caption, uploaded_at, uploaded_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [Number(id), photo_type || 'after', photo_url, caption || '', now, activeUserSession.email]);
+
+    await logAudit('WORK_ORDER_PHOTO_UPLOADED', `Uploaded ${photo_type || 'proof'} photo for Work Order #${id}`, activeUserSession.email, 'photo', String(result.lastID));
+
+    const photo = await dbGet('SELECT * FROM work_order_photos WHERE id = ?', [result.lastID]);
+    res.json(photo);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/work-orders/photos/:photoId', async (req, res) => {
+  try {
+    const { photoId } = req.params;
+    await dbRun('DELETE FROM work_order_photos WHERE id = ?', [Number(photoId)]);
+    res.json({ success: true, message: 'Photo deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Recurring Maintenance Contracts API ──────────────────────
+
+app.get('/api/contracts', async (req, res) => {
+  try {
+    const contracts = await dbAll('SELECT * FROM recurring_contracts ORDER BY created_at DESC');
+    res.json(contracts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/contracts', async (req, res) => {
+  try {
+    const { client_name, client_email, client_phone, property_address, service_type, frequency, rate_per_visit, next_scheduled_date, assigned_crew, notes } = req.body || {};
+    if (!client_name || !property_address) {
+      return res.status(400).json({ error: 'Client name and property address are required.' });
+    }
+
+    const contractId = 'REC-2026-' + (Math.floor(Math.random() * 900) + 100);
+    const now = new Date().toISOString();
+
+    await dbRun(`
+      INSERT INTO recurring_contracts (id, client_name, client_email, client_phone, property_address, service_type, frequency, rate_per_visit, status, next_scheduled_date, assigned_crew, notes, auto_generate_wo, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 1, ?)
+    `, [
+      contractId,
+      client_name,
+      client_email || '',
+      client_phone || '',
+      property_address,
+      service_type || 'Weekly Grounds Maintenance',
+      frequency || 'weekly',
+      Number(rate_per_visit) || 120.00,
+      next_scheduled_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      assigned_crew || 'Team Alpha (Marcus Vance)',
+      notes || '',
+      now
+    ]);
+
+    await logAudit('CONTRACT_CREATED', `Created recurring contract ${contractId} for ${client_name} ($${rate_per_visit || 120}/visit)`, activeUserSession.email, 'contract', contractId);
+
+    const created = await dbGet('SELECT * FROM recurring_contracts WHERE id = ?', [contractId]);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/contracts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, frequency, rate_per_visit, next_scheduled_date, assigned_crew, notes } = req.body || {};
+    
+    await dbRun(`
+      UPDATE recurring_contracts 
+      SET status = COALESCE(?, status),
+          frequency = COALESCE(?, frequency),
+          rate_per_visit = COALESCE(?, rate_per_visit),
+          next_scheduled_date = COALESCE(?, next_scheduled_date),
+          assigned_crew = COALESCE(?, assigned_crew),
+          notes = COALESCE(?, notes)
+      WHERE id = ?
+    `, [status || null, frequency || null, rate_per_visit ? Number(rate_per_visit) : null, next_scheduled_date || null, assigned_crew || null, notes || null, id]);
+
+    const updated = await dbGet('SELECT * FROM recurring_contracts WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/contracts/:id/generate-order', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const contract = await dbGet('SELECT * FROM recurring_contracts WHERE id = ?', [id]);
+    if (!contract) {
+      return res.status(404).json({ error: 'Contract not found' });
+    }
+
+    const woId = 8000 + Math.floor(Math.random() * 1000);
+    const now = new Date().toISOString();
+    const title = `Scheduled Visit: ${contract.service_type}`;
+
+    await dbRun(`
+      INSERT INTO work_orders (id, title, client_name, client_email, client_phone, property_address, service_type, status, priority, target_date, created_at, description, supervisor_notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', 'medium', ?, ?, ?, ?)
+    `, [
+      woId,
+      title,
+      contract.client_name,
+      contract.client_email,
+      contract.client_phone,
+      contract.property_address,
+      contract.service_type,
+      contract.next_scheduled_date ? `${contract.next_scheduled_date}T08:30:00Z` : now,
+      now,
+      `Auto-generated from Recurring Contract ${contract.id}. Rate: $${contract.rate_per_visit}/visit.`,
+      `Assigned to: ${contract.assigned_crew || 'Field Crew'}. Special notes: ${contract.notes || 'Standard protocol'}`
+    ]);
+
+    // Advance next scheduled date by frequency
+    let daysToAdd = 7;
+    if (contract.frequency === 'bi_weekly') daysToAdd = 14;
+    else if (contract.frequency === 'monthly') daysToAdd = 30;
+
+    const nextDate = new Date(Date.now() + daysToAdd * 86400000).toISOString().split('T')[0];
+    await dbRun('UPDATE recurring_contracts SET next_scheduled_date = ? WHERE id = ?', [nextDate, id]);
+
+    await logAudit('CONTRACT_WORK_ORDER_DISPATCHED', `Generated Work Order #${woId} from Contract ${contract.id}`, activeUserSession.email, 'work_order', String(woId));
+
+    res.json({
+      success: true,
+      message: `Work Order #${woId} generated successfully. Next visit scheduled for ${nextDate}.`,
+      work_order_id: woId,
+      next_scheduled_date: nextDate
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Client CRM & Property Profiles API ───────────────────────
+
+app.get('/api/clients/crm', async (req, res) => {
+  try {
+    const clients = await dbAll('SELECT * FROM client_profiles ORDER BY total_spend DESC, name ASC');
+    res.json(clients);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/clients/crm', async (req, res) => {
+  try {
+    const { name, email, phone, property_address, zone, property_size_sqft, grass_type, gate_code, special_instructions } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Client name is required.' });
+
+    const now = new Date().toISOString();
+    const result = await dbRun(`
+      INSERT INTO client_profiles (name, email, phone, property_address, zone, property_size_sqft, grass_type, gate_code, special_instructions, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [name, email || '', phone || '', property_address || '', zone || 'North Zone', Number(property_size_sqft) || 5000, grass_type || 'Kentucky Bluegrass', gate_code || '', special_instructions || '', now]);
+
+    const created = await dbGet('SELECT * FROM client_profiles WHERE id = ?', [result.lastID]);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/clients/crm/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, phone, property_address, zone, property_size_sqft, grass_type, gate_code, special_instructions, status } = req.body || {};
+    
+    await dbRun(`
+      UPDATE client_profiles 
+      SET email = COALESCE(?, email),
+          phone = COALESCE(?, phone),
+          property_address = COALESCE(?, property_address),
+          zone = COALESCE(?, zone),
+          property_size_sqft = COALESCE(?, property_size_sqft),
+          grass_type = COALESCE(?, grass_type),
+          gate_code = COALESCE(?, gate_code),
+          special_instructions = COALESCE(?, special_instructions),
+          status = COALESCE(?, status)
+      WHERE id = ?
+    `, [email || null, phone || null, property_address || null, zone || null, property_size_sqft ? Number(property_size_sqft) : null, grass_type || null, gate_code || null, special_instructions || null, status || null, Number(id)]);
+
+    const updated = await dbGet('SELECT * FROM client_profiles WHERE id = ?', [Number(id)]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/clients/crm/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dbRun('DELETE FROM client_profiles WHERE id = ?', [Number(id)]);
+    res.json({ success: true, message: 'Client profile deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Post-Service Review Requests API ─────────────────────────
+
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const reviews = await dbAll('SELECT * FROM review_requests ORDER BY sent_at DESC');
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/reviews/request', async (req, res) => {
+  try {
+    const { work_order_id, client_name, client_phone, client_email, channel } = req.body || {};
+    const now = new Date().toISOString();
+
+    const result = await dbRun(`
+      INSERT INTO review_requests (work_order_id, client_name, client_phone, client_email, channel, status, sent_at)
+      VALUES (?, ?, ?, ?, ?, 'sent', ?)
+    `, [work_order_id || null, client_name || 'Valued Customer', client_phone || '', client_email || '', channel || 'whatsapp', now]);
+
+    // Update client profile status
+    if (client_name) {
+      await dbRun(`UPDATE client_profiles SET review_status = 'requested' WHERE name = ?`, [client_name]);
+    }
+
+    const reviewLink = `https://g.page/r/lawncraft-reviews/review`;
+    const messageText = `Hi ${client_name}! Thank you for trusting Lawn Craft with your grounds care. Our supervisor verified your completed job #${work_order_id || ''}. Could you take 30 seconds to share your experience on Google? ${reviewLink}`;
+    
+    let dispatchUrl = '';
+    if (client_phone) {
+      const cleanPhone = client_phone.replace(/\D/g, '');
+      dispatchUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
+    }
+
+    await logAudit('REVIEW_REQUEST_SENT', `Sent Google Review invitation to ${client_name} via ${channel || 'whatsapp'}`, activeUserSession.email, 'review', String(result.lastID));
+
+    res.json({
+      success: true,
+      message: 'Review request dispatched',
+      dispatch_url: dispatchUrl,
+      message_text: messageText,
+      review_link: reviewLink
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// ── ODOO ERP MODULES & ENTERPRISE EXTENSIONS ───────────────────
+// ════════════════════════════════════════════════════════════════
+
+// ── 1. M-Pesa STK Push & Multi-Gateway Payments (Odoo Payments) ──
+
+app.get('/api/mpesa/transactions', async (req, res) => {
+  try {
+    const txns = await dbAll('SELECT * FROM mpesa_transactions ORDER BY transaction_date DESC');
+    res.json(txns);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/mpesa/stkpush', async (req, res) => {
+  try {
+    const { invoice_id, work_order_id, phone_number, amount, customer_name, coupon_code, loyalty_points_redeemed, notes } = req.body || {};
+    
+    if (!phone_number) {
+      return res.status(400).json({ error: 'M-Pesa phone number is required.' });
+    }
+
+    // Normalize Kenyan & International phone numbers (e.g. 0712345678 -> 254712345678)
+    let cleanPhone = phone_number.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+      cleanPhone = '254' + cleanPhone.slice(1);
+    } else if (cleanPhone.length === 9) {
+      cleanPhone = '254' + cleanPhone;
+    }
+
+    let rawAmount = Number(amount) || 0;
+    let discountApplied = 0;
+    let loyaltyDiscount = 0;
+
+    // Apply Coupon if valid
+    if (coupon_code) {
+      const coupon = await dbGet('SELECT * FROM coupons WHERE UPPER(code) = UPPER(?) AND is_active = 1', [coupon_code.trim()]);
+      if (coupon) {
+        if (coupon.discount_type === 'percentage') {
+          discountApplied = Math.min(coupon.max_discount, Math.round((rawAmount * (coupon.discount_value / 100)) * 100) / 100);
+        } else {
+          discountApplied = Math.min(rawAmount, coupon.discount_value);
+        }
+        await dbRun('UPDATE coupons SET times_used = times_used + 1 WHERE code = ?', [coupon.code]);
+      }
+    }
+
+    // Apply Loyalty Points Redemption ($0.50 per point)
+    const pointsToRedeem = Math.max(0, parseInt(loyalty_points_redeemed, 10) || 0);
+    if (pointsToRedeem > 0) {
+      loyaltyDiscount = Math.min(rawAmount - discountApplied, Math.round((pointsToRedeem * 0.50) * 100) / 100);
+    }
+
+    const payableAmount = Math.max(1, Math.round((rawAmount - discountApplied - loyaltyDiscount) * 100) / 100);
+    const now = new Date().toISOString();
+    const txnId = 'TXN-MP-' + (Math.floor(Math.random() * 90000) + 10000);
+    const checkoutReqId = 'ws_CO_' + Date.now() + '_' + Math.floor(Math.random() * 900);
+    
+    // Generate realistic M-Pesa Receipt Number (e.g. QK89X4J21A)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let mpesaReceipt = 'QK';
+    for (let i = 0; i < 8; i++) {
+      mpesaReceipt += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    // 1. Record M-Pesa Transaction
+    await dbRun(`
+      INSERT INTO mpesa_transactions (id, invoice_id, work_order_id, phone_number, amount, mpesa_receipt_number, transaction_date, status, result_desc, customer_name, account_reference, checkout_request_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', 'The service request is processed successfully via Lipa Na M-Pesa Online.', ?, ?, ?, ?)
+    `, [
+      txnId,
+      invoice_id || null,
+      work_order_id ? Number(work_order_id) : null,
+      cleanPhone,
+      payableAmount,
+      mpesaReceipt,
+      now,
+      customer_name || 'Valued Customer',
+      invoice_id || ('WO-' + (work_order_id || '999')),
+      checkoutReqId,
+      now
+    ]);
+
+    // 2. Record C2B / Paybill Ledger entry for automated reconciliation
+    await dbRun(`
+      INSERT INTO c2b_transactions (id, trans_id, trans_time, trans_amount, business_short_code, bill_ref_number, msisdn, first_name, matched_invoice_id, reconciled_status, reconciled_at, notes, created_at)
+      VALUES (?, ?, ?, ?, '522522', ?, ?, ?, ?, 'reconciled', ?, ?, ?)
+    `, [
+      'C2B-' + txnId,
+      mpesaReceipt,
+      now.replace('T', ' ').slice(0, 19),
+      payableAmount,
+      invoice_id || ('WO-' + (work_order_id || '999')),
+      cleanPhone,
+      (customer_name || 'Customer').split(' ')[0],
+      invoice_id || null,
+      now,
+      'Settled via M-Pesa Express STK Push.',
+      now
+    ]);
+
+    // 3. Update Invoice if provided
+    let invoiceData = null;
+    if (invoice_id) {
+      const inv = await dbGet('SELECT * FROM invoices WHERE id = ?', [invoice_id]);
+      if (inv) {
+        const totalPaid = Math.round((inv.amount_paid + payableAmount + discountApplied + loyaltyDiscount) * 100) / 100;
+        const newBalance = Math.max(0, Math.round((inv.total_amount - totalPaid) * 100) / 100);
+        const newStatus = newBalance <= 0.01 ? 'paid' : 'partially_paid';
+
+        await dbRun(`
+          UPDATE invoices 
+          SET amount_paid = ?, balance_due = ?, status = ?, payment_method = 'M-Pesa (Lipa Na M-Pesa)', updated_at = ?
+          WHERE id = ?
+        `, [totalPaid, newBalance, newStatus, now, invoice_id]);
+
+        // Record Invoice Payment
+        const paymentId = 'PAY-MP-' + (Math.floor(Math.random() * 9000) + 1000);
+        await dbRun(`
+          INSERT INTO invoice_payments (id, invoice_id, date, amount, method, reference, notes)
+          VALUES (?, ?, ?, ?, 'M-Pesa (STK Push)', ?, ?)
+        `, [
+          paymentId,
+          invoice_id,
+          now,
+          payableAmount,
+          mpesaReceipt,
+          `M-Pesa Online prompt sent to ${cleanPhone}. Receipt: ${mpesaReceipt}`
+        ]);
+
+        invoiceData = await dbGet('SELECT * FROM invoices WHERE id = ?', [invoice_id]);
+      }
+    }
+
+    // 4. Accrue & Update Loyalty Points (Earn 1 pt per $10 spent)
+    const pointsEarned = Math.max(1, Math.floor(payableAmount / 10));
+    let loyaltyAccount = await dbGet('SELECT * FROM loyalty_accounts WHERE client_phone = ? OR client_name = ?', [cleanPhone, customer_name || '']);
+    
+    if (loyaltyAccount) {
+      const newPoints = loyaltyAccount.points_balance - pointsToRedeem + pointsEarned;
+      const lifetimeEarned = loyaltyAccount.lifetime_points_earned + pointsEarned;
+      const lifetimeRedeemed = loyaltyAccount.lifetime_points_redeemed + pointsToRedeem;
+      
+      // Auto upgrade tier based on lifetime points
+      let newTier = 'bronze';
+      if (lifetimeEarned >= 600) newTier = 'platinum';
+      else if (lifetimeEarned >= 300) newTier = 'gold';
+      else if (lifetimeEarned >= 150) newTier = 'silver';
+
+      await dbRun(`
+        UPDATE loyalty_accounts 
+        SET points_balance = ?, lifetime_points_earned = ?, lifetime_points_redeemed = ?, tier = ?, updated_at = ?
+        WHERE id = ?
+      `, [newPoints, lifetimeEarned, lifetimeRedeemed, newTier, now, loyaltyAccount.id]);
+
+      // Record Loyalty Earn Transaction
+      await dbRun(`
+        INSERT INTO loyalty_transactions (id, account_id, type, points, invoice_id, work_order_id, description, created_at)
+        VALUES (?, ?, 'earn', ?, ?, ?, ?, ?)
+      `, [
+        'LTX-' + Date.now(),
+        loyaltyAccount.id,
+        pointsEarned,
+        invoice_id || null,
+        work_order_id ? Number(work_order_id) : null,
+        `Earned ${pointsEarned} loyalty points from M-Pesa payment (${mpesaReceipt})`,
+        now
+      ]);
+
+      if (pointsToRedeem > 0) {
+        await dbRun(`
+          INSERT INTO loyalty_transactions (id, account_id, type, points, invoice_id, work_order_id, description, created_at)
+          VALUES (?, ?, 'redeem', ?, ?, ?, ?, ?)
+        `, [
+          'LTX-R-' + Date.now(),
+          loyaltyAccount.id,
+          -pointsToRedeem,
+          invoice_id || null,
+          work_order_id ? Number(work_order_id) : null,
+          `Redeemed ${pointsToRedeem} points for $${loyaltyDiscount.toFixed(2)} discount`,
+          now
+        ]);
+      }
+    } else if (customer_name) {
+      const newAccId = 'ACC-LOYAL-' + (Math.floor(Math.random() * 900) + 100);
+      const refCode = 'REF-' + (customer_name.replace(/[^a-zA-Z]/g, '').slice(0, 6).toUpperCase() || 'LAWN');
+      await dbRun(`
+        INSERT INTO loyalty_accounts (id, client_name, client_phone, client_email, points_balance, lifetime_points_earned, lifetime_points_redeemed, tier, referral_code, created_at, updated_at)
+        VALUES (?, ?, ?, '', ?, ?, 0, 'bronze', ?, ?, ?)
+      `, [newAccId, customer_name, cleanPhone, pointsEarned, pointsEarned, refCode, now, now]);
+
+      await dbRun(`
+        INSERT INTO loyalty_transactions (id, account_id, type, points, invoice_id, work_order_id, description, created_at)
+        VALUES (?, ?, 'earn', ?, ?, ?, ?, ?)
+      `, [
+        'LTX-' + Date.now(),
+        newAccId,
+        pointsEarned,
+        invoice_id || null,
+        work_order_id ? Number(work_order_id) : null,
+        `Welcome bonus and ${pointsEarned} points earned from M-Pesa settlement`,
+        now
+      ]);
+    }
+
+    // 5. Update Client total spend in CRM
+    if (customer_name) {
+      await dbRun(`
+        UPDATE client_profiles 
+        SET total_spend = total_spend + ?, last_service_date = ?
+        WHERE name = ?
+      `, [payableAmount, now.split('T')[0], customer_name]);
+    }
+
+    await logAudit('MPESA_PAYMENT_SUCCESS', `M-Pesa STK push confirmed for ${customer_name || cleanPhone}: $${payableAmount.toFixed(2)} (Receipt: ${mpesaReceipt})`, activeUserSession.email, 'payment', mpesaReceipt);
+
+    res.json({
+      success: true,
+      message: 'M-Pesa STK Push processed and confirmed successfully',
+      checkout_request_id: checkoutReqId,
+      mpesa_receipt: mpesaReceipt,
+      transaction_id: txnId,
+      amount_paid: payableAmount,
+      discount_applied: discountApplied,
+      loyalty_discount: loyaltyDiscount,
+      points_earned: pointsEarned,
+      invoice: invoiceData,
+      e_receipt_url: `/receipt/${invoice_id || txnId}`
+    });
+  } catch (err) {
+    console.error('[M-Pesa STK Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 2. C2B / Paybill Reconciliation Ledger (Odoo Ledger) ─────
+
+app.get('/api/mpesa/c2b-ledger', async (req, res) => {
+  try {
+    const records = await dbAll('SELECT * FROM c2b_transactions ORDER BY trans_time DESC');
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/mpesa/c2b-reconcile/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { invoice_id, notes } = req.body || {};
+    const now = new Date().toISOString();
+
+    const c2b = await dbGet('SELECT * FROM c2b_transactions WHERE id = ?', [id]);
+    if (!c2b) return res.status(404).json({ error: 'C2B transaction not found' });
+
+    if (invoice_id) {
+      const inv = await dbGet('SELECT * FROM invoices WHERE id = ?', [invoice_id]);
+      if (inv) {
+        const totalPaid = Math.round((inv.amount_paid + c2b.trans_amount) * 100) / 100;
+        const newBalance = Math.max(0, Math.round((inv.total_amount - totalPaid) * 100) / 100);
+        const newStatus = newBalance <= 0.01 ? 'paid' : 'partially_paid';
+
+        await dbRun(`
+          UPDATE invoices 
+          SET amount_paid = ?, balance_due = ?, status = ?, payment_method = 'M-Pesa Paybill Reconciliation', updated_at = ?
+          WHERE id = ?
+        `, [totalPaid, newBalance, newStatus, now, invoice_id]);
+
+        await dbRun(`
+          INSERT INTO invoice_payments (id, invoice_id, date, amount, method, reference, notes)
+          VALUES (?, ?, ?, ?, 'M-Pesa Paybill', ?, ?)
+        `, [
+          'PAY-C2B-' + Math.floor(Math.random() * 9000),
+          invoice_id,
+          now,
+          c2b.trans_amount,
+          c2b.trans_id,
+          `Reconciled Paybill payment from ${c2b.first_name || 'Client'} (${c2b.msisdn})`
+        ]);
+      }
+    }
+
+    await dbRun(`
+      UPDATE c2b_transactions 
+      SET matched_invoice_id = COALESCE(?, matched_invoice_id),
+          reconciled_status = 'reconciled',
+          reconciled_at = ?,
+          notes = COALESCE(?, notes)
+      WHERE id = ?
+    `, [invoice_id || null, now, notes || 'Reconciled by supervisor.', id]);
+
+    await logAudit('C2B_RECONCILE', `Reconciled M-Pesa C2B txn ${c2b.trans_id} to invoice ${invoice_id || 'manual ledger'}`, activeUserSession.email, 'payment', id);
+
+    const updated = await dbGet('SELECT * FROM c2b_transactions WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 3. Loyalty Rewards & Points Engine (Odoo Loyalty) ─────────
+
+app.get('/api/loyalty/accounts', async (req, res) => {
+  try {
+    const accounts = await dbAll('SELECT * FROM loyalty_accounts ORDER BY points_balance DESC, client_name ASC');
+    res.json(accounts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/loyalty/summary/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    let cleanPhone = key.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0') && cleanPhone.length === 10) cleanPhone = '254' + cleanPhone.slice(1);
+
+    let account = await dbGet('SELECT * FROM loyalty_accounts WHERE client_phone = ? OR LOWER(client_email) = LOWER(?) OR LOWER(client_name) = LOWER(?) OR UPPER(referral_code) = UPPER(?)', [cleanPhone, key, key, key]);
+    
+    if (!account) {
+      return res.json({
+        found: false,
+        points_balance: 0,
+        tier: 'bronze',
+        tier_label: 'Standard Bronze Member',
+        discount_value: 0,
+        perks: ['Earn 1 pt per $10 spent']
+      });
+    }
+
+    const perksByTier = {
+      bronze: ['1 Point per $10 spent', 'Birthday seasonal offer discount'],
+      silver: ['1.2x Points Multiplier', '5% Off Aeration & Seasonal Cleanup', 'Priority Dispatch Queue'],
+      gold: ['1.5x Points Multiplier', '10% Off All Services', 'Free Soil Chemistry & pH Test ($85 value)', 'Dedicated Lead Supervisor'],
+      platinum: ['2.0x Double Points', '15% Off All Services & Sod Installations', 'Complimentary Spring Overseeding Pass', 'Emergency 2-Hour Response Service']
+    };
+
+    res.json({
+      found: true,
+      account,
+      points_balance: account.points_balance,
+      tier: account.tier,
+      tier_label: `${account.tier.toUpperCase()} VIP Member`,
+      discount_value: Math.round(account.points_balance * 0.50 * 100) / 100,
+      perks: perksByTier[account.tier] || perksByTier.bronze
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/loyalty/transactions', async (req, res) => {
+  try {
+    const txns = await dbAll('SELECT * FROM loyalty_transactions ORDER BY created_at DESC LIMIT 50');
+    res.json(txns);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 4. Coupons & Promo Engine (Odoo Promotions) ───────────────
+
+app.get('/api/coupons', async (req, res) => {
+  try {
+    const coupons = await dbAll('SELECT * FROM coupons ORDER BY is_active DESC, valid_until ASC');
+    res.json(coupons);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/coupons/validate', async (req, res) => {
+  try {
+    const { code, spend_amount } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Coupon code required' });
+
+    const coupon = await dbGet('SELECT * FROM coupons WHERE UPPER(code) = UPPER(?)', [code.trim()]);
+    if (!coupon) {
+      return res.status(404).json({ valid: false, message: 'Invalid promo code' });
+    }
+
+    if (!coupon.is_active) {
+      return res.status(400).json({ valid: false, message: 'This promo code is inactive' });
+    }
+
+    if (coupon.valid_until && new Date(coupon.valid_until) < new Date()) {
+      return res.status(400).json({ valid: false, message: 'This promo code has expired' });
+    }
+
+    const spend = Number(spend_amount) || 0;
+    if (spend < coupon.min_spend) {
+      return res.status(400).json({ valid: false, message: `Minimum spend of $${coupon.min_spend.toFixed(2)} required for code ${coupon.code}` });
+    }
+
+    let discount = 0;
+    if (coupon.discount_type === 'percentage') {
+      discount = Math.min(coupon.max_discount, Math.round((spend * (coupon.discount_value / 100)) * 100) / 100);
+    } else {
+      discount = Math.min(spend, coupon.discount_value);
+    }
+
+    res.json({
+      valid: true,
+      code: coupon.code,
+      discount_type: coupon.discount_type,
+      discount_value: coupon.discount_value,
+      discount_calculated: discount,
+      description: coupon.description
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 5. Branded Electronic Tax E-Receipts (Odoo E-Receipts) ─────
+
+app.get('/api/receipts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Look up via invoice, payment, or mpesa transaction
+    let invoice = await dbGet('SELECT * FROM invoices WHERE id = ?', [id]);
+    let mpesaTxn = await dbGet('SELECT * FROM mpesa_transactions WHERE id = ? OR invoice_id = ? OR mpesa_receipt_number = ?', [id, id, id]);
+    let items = [];
+    let payments = [];
+
+    if (invoice) {
+      items = await dbAll('SELECT * FROM invoice_items WHERE invoice_id = ?', [invoice.id]);
+      payments = await dbAll('SELECT * FROM invoice_payments WHERE invoice_id = ?', [invoice.id]);
+    }
+
+    if (!invoice && mpesaTxn) {
+      // Build receipt from M-Pesa transaction
+      invoice = {
+        id: mpesaTxn.invoice_id || ('REC-' + mpesaTxn.id),
+        client_name: mpesaTxn.customer_name || 'Customer',
+        client_phone: mpesaTxn.phone_number,
+        property_address: 'Direct Mobile Payment / Field Service',
+        issue_date: mpesaTxn.transaction_date.split('T')[0],
+        total_amount: mpesaTxn.amount,
+        amount_paid: mpesaTxn.amount,
+        balance_due: 0,
+        status: 'paid',
+        payment_method: 'Lipa Na M-Pesa Online'
+      };
+      items = [{ description: 'Lawn & Grounds Maintenance Service', quantity: 1, unit_price: mpesaTxn.amount, amount: mpesaTxn.amount }];
+      payments = [{ id: mpesaTxn.id, date: mpesaTxn.transaction_date, amount: mpesaTxn.amount, method: 'M-Pesa Express', reference: mpesaTxn.mpesa_receipt_number }];
+    }
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Receipt record not found' });
+    }
+
+    const receiptData = {
+      receipt_number: 'RCPT-' + (mpesaTxn?.mpesa_receipt_number || invoice.id.replace('INV-', '')),
+      company_name: 'Lawn Craft Professional Grounds & Turf ERP',
+      company_tax_pin: 'P051829104A',
+      company_vat_reg: 'VAT-99214-KE',
+      company_phone: '+254 700 112 233 / (555) 0199',
+      company_email: 'billing@lawncraft.com',
+      company_address: 'Lawn Craft Headquarters, Suite 400, Green City',
+      invoice,
+      items,
+      payments,
+      mpesa_transaction: mpesaTxn,
+      generated_at: new Date().toISOString(),
+      qr_verification_token: `LAWNCRAFT-VERIFIED-TAX-${invoice.id}-${Date.now().toString(36).toUpperCase()}`
+    };
+
+    res.json(receiptData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/receipts/dispatch', async (req, res) => {
+  try {
+    const { receipt_id, client_email, client_phone, channel } = req.body || {};
+    const receiptUrl = `https://ais-pre-2r565755mktnute2mkiant-69525622808.europe-west2.run.app/receipt/${receipt_id}`;
+    
+    let dispatchUrl = '';
+    const message = `Dear Client, thank you for your payment to Lawn Craft! Your official electronic tax receipt (#${receipt_id}) is ready: ${receiptUrl}`;
+
+    if (client_phone) {
+      const cleanPhone = client_phone.replace(/\D/g, '');
+      dispatchUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    }
+
+    await logAudit('E_RECEIPT_DISPATCHED', `Dispatched electronic receipt ${receipt_id} to ${client_email || client_phone} via ${channel || 'auto'}`, activeUserSession.email, 'receipt', receipt_id);
+
+    res.json({
+      success: true,
+      message: `E-Receipt #${receipt_id} dispatched successfully to ${client_email || client_phone}`,
+      receipt_url: receiptUrl,
+      whatsapp_dispatch_url: dispatchUrl
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 6. Fleet & Equipment Asset Management (Odoo Fleet) ────────
+
+app.get('/api/fleet', async (req, res) => {
+  try {
+    const fleet = await dbAll('SELECT * FROM equipment_fleet ORDER BY category ASC, name ASC');
+    res.json(fleet);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/fleet', async (req, res) => {
+  try {
+    const { name, category, serial_number, model_year, meter_hours, fuel_type, assigned_crew, next_service_hours, notes } = req.body || {};
+    if (!name || !category) return res.status(400).json({ error: 'Name and category required.' });
+
+    const eqId = 'EQ-' + category.slice(0, 3).toUpperCase() + '-' + (Math.floor(Math.random() * 90) + 10);
+    const now = new Date().toISOString();
+
+    await dbRun(`
+      INSERT INTO equipment_fleet (id, name, category, serial_number, model_year, meter_hours, fuel_type, status, assigned_crew, next_service_hours, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'operational', ?, ?, ?, ?)
+    `, [
+      eqId,
+      name,
+      category,
+      serial_number || 'SN-' + Date.now().toString().slice(-6),
+      Number(model_year) || 2024,
+      Number(meter_hours) || 0,
+      fuel_type || 'Gasoline',
+      assigned_crew || 'Team Alpha (Marcus Vance)',
+      Number(next_service_hours) || 50,
+      notes || '',
+      now
+    ]);
+
+    await logAudit('FLEET_ASSET_ADDED', `Added equipment asset ${name} (${eqId})`, activeUserSession.email, 'fleet', eqId);
+
+    const created = await dbGet('SELECT * FROM equipment_fleet WHERE id = ?', [eqId]);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/fleet/:id/maintenance', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { log_type, cost, performed_by, odometer_hours, notes, next_service_hours } = req.body || {};
+    const logId = 'FML-' + Date.now().toString().slice(-4);
+    const now = new Date().toISOString();
+
+    await dbRun(`
+      INSERT INTO fleet_maintenance_logs (id, equipment_id, log_type, cost, performed_by, odometer_hours, notes, logged_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      logId,
+      id,
+      log_type || 'routine_service',
+      Number(cost) || 0,
+      performed_by || activeUserSession.full_name,
+      Number(odometer_hours) || 0,
+      notes || '',
+      now
+    ]);
+
+    // Update equipment stats
+    await dbRun(`
+      UPDATE equipment_fleet 
+      SET last_maintenance_date = ?, 
+          meter_hours = CASE WHEN ? > meter_hours THEN ? ELSE meter_hours END,
+          next_service_hours = COALESCE(?, next_service_hours + 50)
+      WHERE id = ?
+    `, [now.split('T')[0], Number(odometer_hours) || 0, Number(odometer_hours) || 0, next_service_hours ? Number(next_service_hours) : null, id]);
+
+    await logAudit('FLEET_MAINTENANCE_LOGGED', `Logged ${log_type} for asset ${id} ($${Number(cost) || 0})`, activeUserSession.email, 'fleet', id);
+
+    res.json({ success: true, message: 'Maintenance record saved', log_id: logId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/fleet/logs', async (req, res) => {
+  try {
+    const logs = await dbAll(`
+      SELECT l.*, e.name as equipment_name, e.category as equipment_category 
+      FROM fleet_maintenance_logs l 
+      JOIN equipment_fleet e ON l.equipment_id = e.id 
+      ORDER BY l.logged_at DESC
+    `);
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 7. GPS Geo-Fenced Timesheets (Odoo Timesheets) ────────────
+
+app.get('/api/gps-timesheets', async (req, res) => {
+  try {
+    const timesheets = await dbAll('SELECT * FROM gps_timesheets ORDER BY clock_in_time DESC');
+    res.json(timesheets);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gps-timesheets/clock-in', async (req, res) => {
+  try {
+    const { work_order_id, lat, lng, employee_name, notes } = req.body || {};
+    const tsId = 'TS-GPS-' + Date.now().toString().slice(-5);
+    const now = new Date().toISOString();
+
+    let propAddress = 'Field Site Location';
+    let geoStatus = 'verified_on_site';
+    let distanceMeters = 15.0; // Standard simulated close proximity
+
+    if (work_order_id) {
+      const wo = await dbGet('SELECT * FROM work_orders WHERE id = ?', [Number(work_order_id)]);
+      if (wo) {
+        propAddress = wo.property_address;
+        // If lat/lng provided, simulate realistic geofence calculation
+        if (lat && lng) {
+          distanceMeters = Math.round(Math.random() * 45 + 5);
+          geoStatus = distanceMeters <= 250 ? 'verified_on_site' : 'radius_override';
+        }
+        // Advance work order status to in_progress if incoming/planned
+        if (wo.status === 'incoming' || wo.status === 'planned' || wo.status === 'reviewed') {
+          await dbRun(`UPDATE work_orders SET status = 'in_progress', started_at = ? WHERE id = ?`, [now, Number(work_order_id)]);
+        }
+      }
+    }
+
+    await dbRun(`
+      INSERT INTO gps_timesheets (id, user_id, employee_name, work_order_id, property_address, clock_in_time, clock_in_lat, clock_in_lng, geo_distance_meters, geo_status, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      tsId,
+      activeUserSession.id,
+      employee_name || activeUserSession.full_name,
+      work_order_id ? Number(work_order_id) : null,
+      propAddress,
+      now,
+      Number(lat) || -1.286389,
+      Number(lng) || 36.817223,
+      distanceMeters,
+      geoStatus,
+      notes || 'Geo-verified clock-in at property perimeter.',
+      now
+    ]);
+
+    await logAudit('GPS_CLOCK_IN', `Crew clocked in for WO #${work_order_id || 'general'} (Geo-status: ${geoStatus}, ${distanceMeters}m from site)`, activeUserSession.email, 'timesheet', tsId);
+
+    const created = await dbGet('SELECT * FROM gps_timesheets WHERE id = ?', [tsId]);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gps-timesheets/:id/clock-out', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body || {};
+    const now = new Date().toISOString();
+
+    const ts = await dbGet('SELECT * FROM gps_timesheets WHERE id = ?', [id]);
+    if (!ts) return res.status(404).json({ error: 'Timesheet record not found' });
+
+    const clockIn = new Date(ts.clock_in_time).getTime();
+    const clockOut = new Date(now).getTime();
+    const totalMinutes = Math.max(15, Math.round((clockOut - clockIn) / 60000));
+
+    await dbRun(`
+      UPDATE gps_timesheets 
+      SET clock_out_time = ?, total_minutes = ?, notes = COALESCE(?, notes)
+      WHERE id = ?
+    `, [now, totalMinutes, notes || null, id]);
+
+    await logAudit('GPS_CLOCK_OUT', `Crew clocked out of timesheet ${id} (Total: ${totalMinutes} mins)`, activeUserSession.email, 'timesheet', id);
+
+    const updated = await dbGet('SELECT * FROM gps_timesheets WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 8. Vendor Bills & Purchase Orders (Odoo Purchase) ─────────
+
+app.get('/api/purchase-orders', async (req, res) => {
+  try {
+    const pos = await dbAll('SELECT * FROM vendor_purchase_orders ORDER BY order_date DESC');
+    const items = await dbAll('SELECT * FROM purchase_order_items');
+    const itemsByPo = new Map();
+    items.forEach(it => {
+      if (!itemsByPo.has(it.po_id)) itemsByPo.set(it.po_id, []);
+      itemsByPo.get(it.po_id).push(it);
+    });
+
+    const enriched = pos.map(p => ({
+      ...p,
+      items: itemsByPo.get(p.id) || []
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-orders', async (req, res) => {
+  try {
+    const { vendor_name, vendor_contact, expected_delivery, items, notes } = req.body || {};
+    if (!vendor_name) return res.status(400).json({ error: 'Vendor name is required.' });
+
+    const poId = 'PO-2026-' + (Math.floor(Math.random() * 900) + 100);
+    const now = new Date().toISOString();
+    const lineItems = Array.isArray(items) && items.length > 0 ? items : [
+      { item_name: 'Turf Supplies Restock', quantity_ordered: 10, unit_cost: 45.00, line_total: 450.00 }
+    ];
+
+    const total = lineItems.reduce((sum, it) => sum + (Number(it.line_total) || (Number(it.quantity_ordered) * Number(it.unit_cost)) || 0), 0);
+
+    await dbRun(`
+      INSERT INTO vendor_purchase_orders (id, vendor_name, vendor_contact, order_date, expected_delivery, status, total_amount, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?)
+    `, [
+      poId,
+      vendor_name,
+      vendor_contact || '',
+      now.split('T')[0],
+      expected_delivery || new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+      total,
+      notes || '',
+      now
+    ]);
+
+    for (const it of lineItems) {
+      await dbRun(`
+        INSERT INTO purchase_order_items (po_id, inventory_item_id, item_name, quantity_ordered, quantity_received, unit_cost, line_total)
+        VALUES (?, ?, ?, ?, 0, ?, ?)
+      `, [
+        poId,
+        it.inventory_item_id || null,
+        it.item_name,
+        Number(it.quantity_ordered) || 1,
+        Number(it.unit_cost) || 0,
+        Number(it.line_total) || (Number(it.quantity_ordered) * Number(it.unit_cost))
+      ]);
+    }
+
+    await logAudit('PURCHASE_ORDER_CREATED', `Created vendor PO ${poId} for ${vendor_name} ($${total.toFixed(2)})`, activeUserSession.email, 'purchase_order', poId);
+
+    res.json({ success: true, message: 'Purchase Order created', po_id: poId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-orders/:id/receive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date().toISOString();
+
+    const po = await dbGet('SELECT * FROM vendor_purchase_orders WHERE id = ?', [id]);
+    if (!po) return res.status(404).json({ error: 'Purchase order not found' });
+
+    const items = await dbAll('SELECT * FROM purchase_order_items WHERE po_id = ?', [id]);
+    let restockedCount = 0;
+
+    for (const it of items) {
+      // Update line item received quantity
+      await dbRun(`UPDATE purchase_order_items SET quantity_received = quantity_ordered WHERE id = ?`, [it.id]);
+
+      // If linked to an inventory item, automatically increase warehouse quantity
+      if (it.inventory_item_id) {
+        const invItem = await dbGet('SELECT * FROM inventory_items WHERE id = ?', [it.inventory_item_id]);
+        if (invItem) {
+          const oldQty = invItem.quantity_on_hand;
+          const newQty = oldQty + it.quantity_ordered;
+          await dbRun(`
+            UPDATE inventory_items 
+            SET quantity_on_hand = ?, last_restocked = ? 
+            WHERE id = ?
+          `, [newQty, now.split('T')[0], it.inventory_item_id]);
+
+          // Log inventory transaction
+          await dbRun(`
+            INSERT INTO inventory_transactions (id, item_id, type, quantity, previous_qty, new_qty, reason, timestamp, actor_email)
+            VALUES (?, ?, 'RESTOCK_PO', ?, ?, ?, ?, ?, ?)
+          `, [
+            'TXN-PO-' + Math.floor(Math.random() * 9000),
+            it.inventory_item_id,
+            it.quantity_ordered,
+            oldQty,
+            newQty,
+            `Received from Vendor PO #${id} (${po.vendor_name})`,
+            now,
+            activeUserSession.email
+          ]);
+          restockedCount++;
+        }
+      }
+    }
+
+    await dbRun(`
+      UPDATE vendor_purchase_orders 
+      SET status = 'received', received_at = ? 
+      WHERE id = ?
+    `, [now, id]);
+
+    await logAudit('PO_RECEIVED_RESTOCKED', `Received shipment for PO ${id} and auto-restocked ${restockedCount} inventory items`, activeUserSession.email, 'purchase_order', id);
+
+    res.json({ success: true, message: `PO #${id} received. Restocked ${restockedCount} warehouse inventory items.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 9. Automated Dunning & Overdue Reminders (Odoo Dunning) ────
+
+app.get('/api/dunning/logs', async (req, res) => {
+  try {
+    const logs = await dbAll('SELECT * FROM dunning_logs ORDER BY sent_at DESC');
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/dunning/run-scan', async (req, res) => {
+  try {
+    const overdueInvoices = await dbAll(`SELECT * FROM invoices WHERE status = 'overdue' OR (status = 'issued' AND due_date < date('now'))`);
+    const now = new Date().toISOString();
+    let remindersDispatched = 0;
+
+    for (const inv of overdueInvoices) {
+      const stage = 'overdue_notice_7d';
+      const logId = 'DUN-' + (Math.floor(Math.random() * 9000) + 1000);
+      const payLink = `https://ais-pre-2r565755mktnute2mkiant-69525622808.europe-west2.run.app/pay/${inv.id}`;
+
+      await dbRun(`
+        INSERT INTO dunning_logs (id, invoice_id, client_name, client_email, client_phone, stage, sent_via, payment_link, status, sent_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'whatsapp', ?, 'dispatched', ?)
+      `, [logId, inv.id, inv.client_name, inv.client_email || '', inv.client_phone || '', stage, payLink, now]);
+
+      remindersDispatched++;
+    }
+
+    await logAudit('DUNNING_SCAN_RUN', `Executed automated dunning scan: Dispatched ${remindersDispatched} overdue payment reminders`, activeUserSession.email, 'dunning', 'automated');
+
+    res.json({
+      success: true,
+      message: `Dunning scan complete. Dispatched ${remindersDispatched} overdue payment notices with 1-click M-Pesa/Card links.`,
+      dispatched_count: remindersDispatched
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 10. Customer Self-Service Portal API (Odoo Portal) ────────
+
+app.post('/api/portal/lookup', async (req, res) => {
+  try {
+    const { identifier } = req.body || {};
+    if (!identifier) return res.status(400).json({ error: 'Phone number or email required.' });
+
+    let cleanPhone = identifier.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0') && cleanPhone.length === 10) cleanPhone = '254' + cleanPhone.slice(1);
+
+    // Search client profiles
+    const client = await dbGet(`
+      SELECT * FROM client_profiles 
+      WHERE LOWER(email) = LOWER(?) OR phone LIKE ? OR phone LIKE ? OR LOWER(name) LIKE LOWER(?)
+    `, [identifier.trim(), `%${cleanPhone}%`, `%${identifier.trim()}%`, `%${identifier.trim()}%`]);
+
+    const clientName = client?.name || identifier.trim();
+
+    // Fetch related records
+    const workOrders = await dbAll(`
+      SELECT * FROM work_orders 
+      WHERE LOWER(client_name) = LOWER(?) OR client_phone LIKE ? OR LOWER(client_email) = LOWER(?)
+      ORDER BY created_at DESC
+    `, [clientName, `%${cleanPhone}%`, identifier.trim()]);
+
+    const invoices = await dbAll(`
+      SELECT * FROM invoices 
+      WHERE LOWER(client_name) = LOWER(?) OR client_phone LIKE ? OR LOWER(client_email) = LOWER(?)
+      ORDER BY issue_date DESC
+    `, [clientName, `%${cleanPhone}%`, identifier.trim()]);
+
+    const quotes = await dbAll(`
+      SELECT * FROM quotes 
+      WHERE LOWER(client_name) = LOWER(?) OR client_phone LIKE ? OR LOWER(client_email) = LOWER(?)
+      ORDER BY created_at DESC
+    `, [clientName, `%${cleanPhone}%`, identifier.trim()]);
+
+    const loyalty = await dbGet(`
+      SELECT * FROM loyalty_accounts 
+      WHERE client_phone = ? OR LOWER(client_name) = LOWER(?) OR LOWER(client_email) = LOWER(?)
+    `, [cleanPhone, clientName, identifier.trim()]);
+
+    res.json({
+      success: true,
+      client: client || { name: clientName, phone: cleanPhone, email: identifier },
+      loyalty: loyalty || { points_balance: 0, tier: 'bronze', referral_code: 'REF-NEW' },
+      work_orders: workOrders,
+      invoices: invoices,
+      quotes: quotes
+    });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

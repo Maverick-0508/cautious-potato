@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electronic Tax Receipt | Lawn Craft ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --primary: #15803d;
+      --primary-dark: #14532d;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 32px 16px 64px;
+    }
+    .receipt-container {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+    }
+    .tax-banner {
+      background: #14532d;
+      color: #f0fdf4;
+      padding: 10px 24px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .receipt-header {
+      padding: 32px 32px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px dashed var(--border);
+      gap: 20px;
+    }
+    .brand-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .company-tax-info {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    .qr-block {
+      text-align: center;
+      background: #f8fafc;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .qr-img {
+      width: 90px;
+      height: 90px;
+      display: block;
+      margin: 0 auto 4px;
+    }
+    .qr-caption {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .receipt-body {
+      padding: 24px 32px;
+    }
+    .paid-stamp-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .paid-stamp-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .paid-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #16a34a;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .paid-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #166534;
+    }
+    .paid-sub {
+      font-size: 12px;
+      color: #15803d;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .meta-item h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .meta-item p {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .items-table th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .items-table td {
+      padding: 10px 0;
+      font-size: 13px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .totals-area {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .total-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 4px 0;
+      color: var(--muted);
+    }
+    .total-line.final {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+      margin-top: 4px;
+    }
+    .loyalty-banner {
+      background: #fdf4ff;
+      border: 1px solid #f0abfc;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: #86198f;
+    }
+    .loyalty-badge {
+      background: #a21caf;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 16px 32px 24px;
+      background: #fafaf9;
+      border-top: 1px solid var(--border);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #f1f5f9;
+    }
+    .btn-primary {
+      background: #15803d;
+      color: #fff;
+      border-color: #15803d;
+    }
+    .btn-primary:hover {
+      background: #166534;
+    }
+    @media print {
+      body { padding: 0; background: #fff; }
+      .receipt-container { box-shadow: none; border: none; max-width: 100%; }
+      .actions-grid, .loyalty-banner, .btn-thermal { display: none !important; }
+    }
+    @media (max-width: 600px) {
+      .receipt-header { flex-direction: column; }
+      .meta-grid { grid-template-columns: 1fr; }
+      .actions-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="receipt-container" id="receiptContainer">
+    <div class="tax-banner">
+      <span><i class="fa-solid fa-file-circle-check"></i> OFFICIAL ELECTRONIC TAX RECEIPT</span>
+      <span id="taxPinDisplay">KRA PIN: P051829104A</span>
+    </div>
+
+    <div class="receipt-header">
+      <div>
+        <div class="brand-name">
+          <i class="fa-solid fa-seedling"></i> Lawn Craft
+        </div>
+        <div class="company-tax-info">
+          <strong>Lawn Craft Grounds & Turf Care Ltd.</strong><br>
+          VAT Reg: VAT-99214-KE · Tax Pin: P051829104A<br>
+          Tel: +254 700 112 233 / (555) 0199 · Email: billing@lawncraft.com<br>
+          HQ: Suite 400, Green City Plaza
+        </div>
+      </div>
+      <div class="qr-block">
+        <img id="qrCodeImg" class="qr-img" src="" alt="Verification QR">
+        <div class="qr-caption">Scan to Verify</div>
+      </div>
+    </div>
+
+    <div class="receipt-body">
+      <div class="paid-stamp-box">
+        <div class="paid-stamp-left">
+          <div class="paid-icon"><i class="fa-solid fa-check"></i></div>
+          <div>
+            <div class="paid-title">Payment Confirmed & Settled</div>
+            <div class="paid-sub" id="paymentMethodSub">M-Pesa Express · Ref: QK89X4J21A</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 11px; color: #166534; text-transform: uppercase; font-weight: 600;">Receipt No.</div>
+          <div style="font-size: 14px; font-weight: 800; color: #14532d;" id="receiptNum">RCPT-QK89X4J21A</div>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-item">
+          <h4>Billed To Client</h4>
+          <p id="clientName">Loading Customer…</p>
+          <span style="font-size: 12px; color: var(--muted);" id="clientContact">—</span>
+        </div>
+        <div class="meta-item">
+          <h4>Service Location</h4>
+          <p id="propertyAddress">—</p>
+          <span style="font-size: 12px; color: var(--muted);" id="serviceDate">Date: —</span>
+        </div>
+      </div>
+
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="text-center" style="width: 60px;">Qty</th>
+            <th class="text-right" style="width: 100px;">Rate</th>
+            <th class="text-right" style="width: 100px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody id="receiptItemsBody">
+          <tr><td colspan="4" class="text-center">Loading receipt items…</td></tr>
+        </tbody>
+      </table>
+
+      <div class="totals-area">
+        <div class="total-line">
+          <span>Subtotal</span>
+          <span id="subtotalVal">$0.00</span>
+        </div>
+        <div class="total-line">
+          <span>Tax (16% VAT Inclusive)</span>
+          <span id="taxVal">$0.00</span>
+        </div>
+        <div class="total-line final">
+          <span>Total Amount Paid</span>
+          <span id="totalPaidVal" style="color: #15803d;">$0.00</span>
+        </div>
+        <div class="total-line">
+          <span>Balance Remaining</span>
+          <span id="balanceRemainingVal">$0.00</span>
+        </div>
+      </div>
+
+      <div class="loyalty-banner" id="loyaltyBanner">
+        <div>
+          <i class="fa-solid fa-gift"></i> <strong>Loyalty Rewards:</strong> You earned <span id="pointsEarnedTxt">12</span> points on this service!
+        </div>
+        <span class="loyalty-badge" id="tierBadge">Gold VIP</span>
+      </div>
+    </div>
+
+    <div class="actions-grid">
+      <button class="btn" onclick="window.print()">
+        <i class="fa-solid fa-print"></i> Print Receipt
+      </button>
+      <a class="btn" id="btnThermal" href="#">
+        <i class="fa-solid fa-receipt"></i> 80mm POS Slip
+      </a>
+      <button class="btn btn-primary" id="btnShareWhatsApp">
+        <i class="fa-brands fa-whatsapp"></i> Share WhatsApp
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const pathParts = window.location.pathname.split('/');
+    const receiptId = pathParts[pathParts.length - 1] || 'INV-2026-001';
+
+    async function loadReceipt() {
+      try {
+        const res = await fetch(`/api/receipts/${encodeURIComponent(receiptId)}`);
+        if (!res.ok) throw new Error('Receipt not found');
+        const data = await res.json();
+        renderReceipt(data);
+      } catch (err) {
+        document.getElementById('receiptContainer').innerHTML = `
+          <div style="padding: 60px 30px; text-align: center;">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size: 40px; color: #dc2626; margin-bottom: 12px;"></i>
+            <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 6px;">Receipt Not Found</h2>
+            <p style="color: var(--muted); margin-bottom: 20px;">Could not retrieve receipt record #${receiptId}.</p>
+            <a href="/" class="btn btn-primary">Return to Lawn Craft</a>
+          </div>
+        `;
+      }
+    }
+
+    function renderReceipt(data) {
+      const inv = data.invoice;
+      const mpesa = data.mpesa_transaction;
+      
+      document.title = `Electronic Tax Receipt ${data.receipt_number} | Lawn Craft`;
+      document.getElementById('receiptNum').textContent = data.receipt_number;
+      document.getElementById('clientName').textContent = inv.client_name;
+      document.getElementById('clientContact').textContent = `${inv.client_phone || ''} ${inv.client_email ? '· ' + inv.client_email : ''}`;
+      document.getElementById('propertyAddress').textContent = inv.property_address;
+      document.getElementById('serviceDate').textContent = `Issued: ${new Date(inv.issue_date || data.generated_at).toLocaleDateString()}`;
+
+      const refText = mpesa?.mpesa_receipt_number ? `M-Pesa Express · Ref: ${mpesa.mpesa_receipt_number}` : (inv.payment_method || 'Electronic Settlement');
+      document.getElementById('paymentMethodSub').textContent = refText;
+
+      // QR Code
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(window.location.href)}`;
+      document.getElementById('qrCodeImg').src = qrUrl;
+
+      // Items
+      const tbody = document.getElementById('receiptItemsBody');
+      tbody.innerHTML = '';
+      if (data.items && data.items.length > 0) {
+        data.items.forEach(it => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${it.description}</strong></td>
+            <td class="text-center">${it.quantity}</td>
+            <td class="text-right">$${Number(it.unit_price).toFixed(2)}</td>
+            <td class="text-right">$${Number(it.amount).toFixed(2)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        tbody.innerHTML = `
+          <tr>
+            <td><strong>Professional Lawn & Grounds Maintenance</strong></td>
+            <td class="text-center">1</td>
+            <td class="text-right">$${Number(inv.total_amount).toFixed(2)}</td>
+            <td class="text-right">$${Number(inv.total_amount).toFixed(2)}</td>
+          </tr>
+        `;
+      }
+
+      // Totals
+      const subtotal = inv.subtotal || (inv.total_amount * 0.84);
+      const tax = inv.tax || (inv.total_amount * 0.16);
+      document.getElementById('subtotalVal').textContent = `$${Number(subtotal).toFixed(2)}`;
+      document.getElementById('taxVal').textContent = `$${Number(tax).toFixed(2)}`;
+      document.getElementById('totalPaidVal').textContent = `$${Number(inv.amount_paid || inv.total_amount).toFixed(2)}`;
+      document.getElementById('balanceRemainingVal').textContent = `$${Number(inv.balance_due || 0).toFixed(2)}`;
+
+      // Loyalty
+      const pts = Math.max(1, Math.floor((inv.amount_paid || inv.total_amount) / 10));
+      document.getElementById('pointsEarnedTxt').textContent = pts;
+
+      // Thermal link
+      document.getElementById('btnThermal').href = `/receipt/${receiptId}/thermal`;
+
+      // WhatsApp Button
+      document.getElementById('btnShareWhatsApp').onclick = () => {
+        const phone = (inv.client_phone || '').replace(/\D/g, '');
+        const msg = `Hi ${inv.client_name}, here is your official Lawn Craft electronic tax receipt #${data.receipt_number} ($${Number(inv.amount_paid || inv.total_amount).toFixed(2)}): ${window.location.href}`;
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+      };
+    }
+
+    loadReceipt();
+  </script>
+</body>
+</html>

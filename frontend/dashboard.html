@@ -11,6 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
         crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body class="dashboard-body">
@@ -62,8 +64,13 @@
     <!-- ── Sidebar ─────────────────────────────────────── -->
     <aside class="sidebar" aria-label="Dashboard navigation">
       <div class="sidebar-brand">
-        <span class="brand-name">Lawn Craft</span>
-        <span class="brand-role">Supervisor Dashboard</span>
+        <div class="brand-text-wrap">
+          <span class="brand-name">Lawn Craft</span>
+          <span class="brand-role">Supervisor Dashboard</span>
+        </div>
+        <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" aria-label="Close navigation">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
 
       <nav class="sidebar-nav" aria-label="Primary">
@@ -92,15 +99,59 @@
           <i class="fa-solid fa-file-invoice-dollar"></i> Client Invoices
           <span class="badge" id="invoices-badge">0</span>
         </a>
+        <a href="#" data-view="mpesa">
+          <i class="fa-solid fa-mobile-screen-button"></i> M-Pesa &amp; Payments
+          <span class="badge" id="mpesa-badge" style="background:#16a34a">STK</span>
+        </a>
+        <a href="#" data-view="loyalty">
+          <i class="fa-solid fa-gift"></i> Loyalty &amp; Rewards
+          <span class="badge" id="loyalty-badge" style="background:#86198f">POS</span>
+        </a>
+        <a href="#" data-view="receipts">
+          <i class="fa-solid fa-receipt"></i> Tax E-Receipts
+        </a>
+        <a href="#" data-view="dunning">
+          <i class="fa-solid fa-hand-holding-dollar"></i> Dunning &amp; Overdue
+          <span class="badge" id="dunning-badge" style="background:#dc2626">0</span>
+        </a>
         <a href="#" data-view="inventory">
           <i class="fa-solid fa-boxes-stacked"></i> Inventory ERP
           <span class="badge" id="inventory-badge" style="display:none;background:var(--danger)">0</span>
         </a>
+        <a href="#" data-view="purchasing">
+          <i class="fa-solid fa-cart-flatbed"></i> Purchase Orders
+          <span class="badge" id="po-badge" style="background:#0284c7">0</span>
+        </a>
         <a href="#" data-view="payroll">
           <i class="fa-solid fa-money-check-dollar"></i> Automated Payroll
         </a>
+        <a href="#" data-view="timesheets">
+          <i class="fa-solid fa-clock-rotate-left"></i> GPS Timesheets
+        </a>
+        <a href="#" data-view="fleet">
+          <i class="fa-solid fa-truck-pickup"></i> Fleet &amp; Equipment
+        </a>
         <a href="#" data-view="automation">
           <i class="fa-solid fa-robot"></i> Workflow Rules
+        </a>
+
+        <div class="sidebar-section-label">Growth &amp; Client Portals</div>
+        <a href="#" data-view="quotes">
+          <i class="fa-solid fa-file-signature"></i> Digital Quotes
+          <span class="badge" id="quotes-badge" style="background:#0284c7">0</span>
+        </a>
+        <a href="#" data-view="contracts">
+          <i class="fa-solid fa-repeat"></i> Recurring Contracts
+          <span class="badge" id="contracts-badge" style="background:#059669">0</span>
+        </a>
+        <a href="#" data-view="clients">
+          <i class="fa-solid fa-address-book"></i> Client CRM
+        </a>
+        <a href="#" data-view="territory">
+          <i class="fa-solid fa-map-location-dot"></i> Route &amp; Territory Map
+        </a>
+        <a href="#" data-view="widget">
+          <i class="fa-solid fa-code"></i> Embeddable Widget
         </a>
 
         <div class="sidebar-section-label">Monitoring</div>
@@ -796,6 +847,864 @@
         </div>
       </section>
 
+      <!-- ── View: Digital Quotes & Estimates ─────────── -->
+      <section class="view-section" id="view-quotes">
+        <div class="stats-grid" id="quotes-stats-container">
+          <div class="stat-card">
+            <div class="stat-label">Total Estimates</div>
+            <div class="stat-value" id="quotes-stat-total">0</div>
+            <div class="stat-sub">Generated digital proposals</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">Pending Approval</div>
+            <div class="stat-value" id="quotes-stat-pending">0</div>
+            <div class="stat-sub">Awaiting client signature</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Approved &amp; Booked</div>
+            <div class="stat-value" id="quotes-stat-approved">0</div>
+            <div class="stat-sub">Signed contracts won</div>
+          </div>
+          <div class="stat-card stat-warning">
+            <div class="stat-label">Pipeline Value</div>
+            <div class="stat-value" id="quotes-stat-value">$0.00</div>
+            <div class="stat-sub">Active quote proposals</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-primary" id="btn-create-quote">
+              <i class="fa-solid fa-plus"></i> Create Digital Estimate
+            </button>
+            <a href="/widget/calculator" target="_blank" class="btn-secondary">
+              <i class="fa-solid fa-calculator"></i> Open Web Calculator
+            </a>
+          </div>
+          <input type="search" id="quotes-search-input" placeholder="Search estimates, clients, or addresses…" aria-label="Search quotes">
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-file-signature section-icon"></i> Digital Client Proposals &amp; Sign-offs</h2>
+            <span class="record-count" id="count-quotes"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Quote #</th>
+                <th>Client Name</th>
+                <th>Property Address</th>
+                <th>Scope / Tier</th>
+                <th>Total ($)</th>
+                <th>Status</th>
+                <th>Signature / Valid</th>
+                <th>Shareable Public Link</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-quotes">
+              <tr>
+                <td colspan="9" class="empty-row"><span class="spinner"></span> Loading digital estimates…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Recurring Maintenance Contracts ──────── -->
+      <section class="view-section" id="view-contracts">
+        <div class="stats-grid" id="contracts-stats-container">
+          <div class="stat-card">
+            <div class="stat-label">Active Contracts</div>
+            <div class="stat-value" id="contracts-stat-active">0</div>
+            <div class="stat-sub">Recurring maintenance agreements</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Monthly Recurring Revenue</div>
+            <div class="stat-value" id="contracts-stat-mrr">$0.00</div>
+            <div class="stat-sub">Predictable monthly cashflow</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">Weekly Service Visits</div>
+            <div class="stat-value" id="contracts-stat-weekly">0</div>
+            <div class="stat-sub">Regular recurring accounts</div>
+          </div>
+          <div class="stat-card stat-warning">
+            <div class="stat-label">Next Up This Week</div>
+            <div class="stat-value" id="contracts-stat-upcoming">0</div>
+            <div class="stat-sub">Scheduled crew dispatches</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <button class="btn-primary" id="btn-create-contract">
+            <i class="fa-solid fa-plus"></i> New Maintenance Agreement
+          </button>
+          <div style="font-size:0.85rem;color:var(--text-light);display:flex;align-items:center;gap:6px;">
+            <i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Auto-generates work orders and dispatches crews on scheduled dates.
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-repeat section-icon"></i> Recurring Grounds Maintenance Subscriptions</h2>
+            <span class="record-count" id="count-contracts"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Agreement #</th>
+                <th>Client &amp; Contact</th>
+                <th>Property Address</th>
+                <th>Service Type</th>
+                <th>Frequency</th>
+                <th>Rate / Visit</th>
+                <th>Next Scheduled</th>
+                <th>Assigned Crew</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-contracts">
+              <tr>
+                <td colspan="10" class="empty-row"><span class="spinner"></span> Loading maintenance contracts…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Client CRM & Property Profiles ───────── -->
+      <section class="view-section" id="view-clients">
+        <div class="stats-grid" id="clients-stats-container">
+          <div class="stat-card">
+            <div class="stat-label">Total Client Profiles</div>
+            <div class="stat-value" id="clients-stat-total">0</div>
+            <div class="stat-sub">Residential &amp; Commercial</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">Avg Property Size</div>
+            <div class="stat-value" id="clients-stat-avg-size">0 sq ft</div>
+            <div class="stat-sub">Managed turf coverage</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">Total Spend Billed</div>
+            <div class="stat-value" id="clients-stat-spend">$0.00</div>
+            <div class="stat-sub">Lifetime client billing</div>
+          </div>
+          <div class="stat-card stat-warning">
+            <div class="stat-label">Google Reviews</div>
+            <div class="stat-value" id="clients-stat-reviews">0</div>
+            <div class="stat-sub">Reputation requests tracked</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <button class="btn-primary" id="btn-create-client">
+            <i class="fa-solid fa-user-plus"></i> Add Client Profile
+          </button>
+          <input type="search" id="clients-search-input" placeholder="Search by name, phone, address, or gate code…" aria-label="Search CRM">
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h2><i class="fa-solid fa-address-book section-icon"></i> Customer Accounts &amp; Property Intelligence</h2>
+            <span class="record-count" id="count-clients"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Customer &amp; Contact</th>
+                <th>Property Address &amp; Zone</th>
+                <th>Lawn Area (Sq Ft)</th>
+                <th>Turf Type</th>
+                <th>Gate Code / Instructions</th>
+                <th>Total Spend</th>
+                <th>Review Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-clients">
+              <tr>
+                <td colspan="8" class="empty-row"><span class="spinner"></span> Loading client CRM…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Route & Territory Map ─────────────────── -->
+      <section class="view-section" id="view-territory">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">North Zone</div>
+            <div class="stat-value" style="color:#0284c7;">Team Alpha</div>
+            <div class="stat-sub">Springfield, North Hills</div>
+          </div>
+          <div class="stat-card stat-info">
+            <div class="stat-label">South Zone</div>
+            <div class="stat-value" style="color:#10b981;">Team Beta</div>
+            <div class="stat-sub">Old Town, Greenfield</div>
+          </div>
+          <div class="stat-card stat-warning">
+            <div class="stat-label">East Zone</div>
+            <div class="stat-value" style="color:#f59e0b;">Team Alpha</div>
+            <div class="stat-sub">Tech Park, Eastlake</div>
+          </div>
+          <div class="stat-card stat-success">
+            <div class="stat-label">West Zone</div>
+            <div class="stat-value" style="color:#8b5cf6;">Team Gamma</div>
+            <div class="stat-sub">Ridgeway, Westend</div>
+          </div>
+        </div>
+
+        <div class="territory-map-container" style="background:#fff;border-radius:12px;border:1px solid var(--border-color);overflow:hidden;margin-top:16px;box-shadow:var(--shadow-sm);">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;background:#f8fafc;">
+            <div>
+              <h3 style="margin:0;font-size:1.1rem;font-weight:700;color:var(--text-dark);"><i class="fa-solid fa-map-location-dot" style="color:var(--primary);margin-right:8px;"></i> Service Territory &amp; Real-time Job Dispatch Map</h3>
+              <p style="margin:4px 0 0;font-size:0.85rem;color:var(--text-light);">Visual overview of active work orders, recurring maintenance clients, and crew service routes.</p>
+            </div>
+            <button class="btn-secondary btn-sm" id="btn-recenter-map">
+              <i class="fa-solid fa-location-crosshairs"></i> Recenter Map
+            </button>
+          </div>
+          <div id="territory-map" style="height:520px;width:100%;z-index:1;"></div>
+        </div>
+      </section>
+
+      <!-- ── View: Embeddable Pricing Widget ─────────────── -->
+      <section class="view-section" id="view-widget">
+        <div class="widget-integration-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:8px;">
+          
+          <!-- Code Integration Card -->
+          <div style="background:#fff;border-radius:12px;border:1px solid var(--border-color);padding:24px;box-shadow:var(--shadow-sm);">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+              <div style="width:40px;height:40px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+                <i class="fa-solid fa-code"></i>
+              </div>
+              <div>
+                <h3 style="margin:0;font-size:1.15rem;font-weight:700;color:var(--text-dark);">Zero-Code Website Integration</h3>
+                <p style="margin:2px 0 0;font-size:0.85rem;color:var(--text-light);">Drop this 1-line snippet into <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">lawncraft.vercel.app</code></p>
+              </div>
+            </div>
+
+            <p style="font-size:0.9rem;color:var(--text-medium);line-height:1.5;margin-bottom:16px;">
+              Embed our interactive pricing calculator on your landing page. When visitors slide their lawn size and book, the request <strong>instantly creates a Work Order and Digital Quote</strong> in this Supervisor dashboard without touching backend code.
+            </p>
+
+            <div style="position:relative;margin-bottom:20px;">
+              <label style="font-size:0.8rem;font-weight:700;text-transform:uppercase;color:var(--text-light);letter-spacing:0.5px;display:block;margin-bottom:6px;">HTML Embed Snippet</label>
+              <textarea id="widget-embed-code" readonly style="width:100%;height:110px;font-family:monospace;font-size:0.85rem;background:#0f172a;color:#38bdf8;padding:12px;border-radius:8px;border:none;resize:none;" onclick="this.select();"></textarea>
+              <button class="btn-secondary btn-sm" id="btn-copy-widget-code" style="position:absolute;top:32px;right:10px;">
+                <i class="fa-solid fa-copy"></i> Copy Code
+              </button>
+            </div>
+
+            <div style="background:#f8fafc;border-radius:8px;padding:16px;border:1px solid #e2e8f0;margin-bottom:20px;">
+              <h4 style="margin:0 0 8px;font-size:0.95rem;font-weight:700;color:var(--text-dark);"><i class="fa-brands fa-whatsapp" style="color:#25D366;margin-right:6px;"></i> Direct WhatsApp Quick-Booking Link</h4>
+              <p style="font-size:0.85rem;color:var(--text-medium);margin:0 0 10px;">Send this direct link to prospective clients on WhatsApp or Social Media:</p>
+              <div style="display:flex;gap:8px;">
+                <input type="text" id="widget-direct-link" readonly style="flex:1;font-size:0.85rem;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:6px;">
+                <button class="btn-primary btn-sm" id="btn-copy-direct-link">
+                  <i class="fa-solid fa-link"></i> Copy Link
+                </button>
+                <a id="btn-open-direct-link" href="#" target="_blank" class="btn-secondary btn-sm">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:12px;">
+              <a href="/widget/calculator" target="_blank" class="btn-primary" style="flex:1;text-align:center;">
+                <i class="fa-solid fa-external-link"></i> Open Full Widget in New Tab
+              </a>
+            </div>
+          </div>
+
+          <!-- Live Interactive Preview Card -->
+          <div style="background:#fff;border-radius:12px;border:1px solid var(--border-color);padding:24px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="margin:0;font-size:1.15rem;font-weight:700;color:var(--text-dark);"><i class="fa-solid fa-mobile-screen-button" style="color:var(--primary);margin-right:8px;"></i> Live Widget Preview</h3>
+              <span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:20px;font-size:0.75rem;font-weight:700;">LIVE INTERACTIVE</span>
+            </div>
+            <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;overflow:hidden;background:#f8fafc;min-height:500px;">
+              <iframe id="widget-preview-frame" src="/widget/calculator" style="width:100%;height:100%;min-height:500px;border:none;"></iframe>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── View: M-Pesa & Multi-Gateway Payments ──────────────── -->
+      <section class="view-section" id="view-mpesa">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-mobile-screen-button" style="color:#16a34a;margin-right:8px;"></i> M-Pesa &amp; Payment Gateway Hub</h2>
+            <p class="view-subtitle">Live Lipa Na M-Pesa Online STK Push, C2B Paybill reconciliation ledger, and split checkout logs.</p>
+          </div>
+          <div class="view-header-actions">
+            <button type="button" class="btn-primary" id="btn-open-stk-modal">
+              <i class="fa-solid fa-bolt"></i> Trigger STK Push
+            </button>
+            <button type="button" class="btn-secondary" id="btn-refresh-mpesa">
+              <i class="fa-solid fa-rotate"></i> Refresh Ledger
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Mobile Collections</div>
+            <div class="kpi-value" id="mpesa-kpi-total">$0.00</div>
+            <div class="kpi-sub" style="color:#16a34a;"><i class="fa-solid fa-shield-check"></i> Verified Settlements</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Completed Transactions</div>
+            <div class="kpi-value" id="mpesa-kpi-count">0</div>
+            <div class="kpi-sub">STK Express + C2B</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Unmatched Paybills</div>
+            <div class="kpi-value" id="mpesa-kpi-unmatched" style="color:#d97706;">0</div>
+            <div class="kpi-sub">Needs Invoice Match</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Paybill Shortcode</div>
+            <div class="kpi-value" style="font-size:1.4rem;">522522</div>
+            <div class="kpi-sub">Safaricom Business Hub</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;" class="mpesa-split-grid">
+          <!-- C2B Paybill Reconciliation Card -->
+          <div class="table-wrapper" style="margin:0;">
+            <div class="table-header" style="background:#fefce8; border-bottom:1px solid #fef08a;">
+              <h3 style="margin:0; font-size:0.95rem; font-weight:700; color:#854d0e;">
+                <i class="fa-solid fa-receipt"></i> Incoming C2B Paybill &amp; Till Queue
+              </h3>
+              <span class="badge" id="c2b-queue-badge" style="background:#d97706;">0 Pending</span>
+            </div>
+            <div style="padding:12px; font-size:0.85rem; color:var(--text-medium); border-bottom:1px solid var(--border-color);">
+              Match incoming customer Paybill deposits to open invoices with 1-click automated ledger reconciliation.
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="font-size:0.85rem;">
+                <thead>
+                  <tr>
+                    <th>Ref / Sender</th>
+                    <th>Amount</th>
+                    <th>Account Ref</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="c2b-table-body">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-light);padding:24px;">No unmatched C2B payments in queue.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Quick STK Trigger Console -->
+          <div style="background:#fff; border-radius:12px; border:1px solid var(--border-color); padding:20px; box-shadow:var(--shadow-sm);">
+            <h3 style="margin:0 0 8px; font-size:1rem; font-weight:700; color:var(--text-dark);">
+              <i class="fa-solid fa-paper-plane" style="color:#16a34a;margin-right:6px;"></i> Direct STK Push Console
+            </h3>
+            <p style="font-size:0.85rem; color:var(--text-medium); margin-bottom:14px;">
+              Send an instant Lipa Na M-Pesa PIN prompt directly to a customer's handset.
+            </p>
+            <form id="quick-stk-form">
+              <div class="form-group" style="margin-bottom:10px;">
+                <label style="font-size:0.8rem; font-weight:600;">Select Open Invoice</label>
+                <select id="quick-stk-invoice-select" class="form-control" style="width:100%; font-size:0.85rem;" required>
+                  <option value="">-- Choose open invoice --</option>
+                </select>
+              </div>
+              <div class="form-row-2" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+                <div class="form-group">
+                  <label style="font-size:0.8rem; font-weight:600;">Phone Number</label>
+                  <input type="text" id="quick-stk-phone" placeholder="2547XXXXXXXX" required style="font-size:0.85rem;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:0.8rem; font-weight:600;">Amount ($)</label>
+                  <input type="number" id="quick-stk-amount" step="0.01" required style="font-size:0.85rem;">
+                </div>
+              </div>
+              <button type="submit" class="btn-primary" style="width:100%; background:#16a34a; border-color:#15803d;" id="btn-submit-quick-stk">
+                <i class="fa-solid fa-mobile-screen-button"></i> Send M-Pesa Prompt Now
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- M-Pesa Transactions Table -->
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-list"></i> Full M-Pesa Transaction History</h3>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="mpesa-search-input" placeholder="Search receipt or phone…" style="padding:6px 10px;font-size:0.85rem;border-radius:6px;border:1px solid var(--border-color);">
+            </div>
+          </div>
+          <table id="mpesa-txns-table">
+            <thead>
+              <tr>
+                <th>Receipt #</th>
+                <th>Phone Number</th>
+                <th>Client / Invoice</th>
+                <th>Amount</th>
+                <th>Channel</th>
+                <th>Date / Time</th>
+                <th>Status</th>
+                <th>Receipt</th>
+              </tr>
+            </thead>
+            <tbody id="mpesa-txns-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:24px;">Loading transactions…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Loyalty & Coupons Engine ────────────────────────── -->
+      <section class="view-section" id="view-loyalty">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-gift" style="color:#86198f;margin-right:8px;"></i> Loyalty Rewards &amp; Coupons Engine</h2>
+            <p class="view-subtitle">Odoo-style POS loyalty points accrual, VIP tier management, and promotional discount coupons.</p>
+          </div>
+          <div class="view-header-actions">
+            <button type="button" class="btn-primary" id="btn-create-coupon" style="background:#86198f;border-color:#701a75;">
+              <i class="fa-solid fa-tag"></i> + New Promo Coupon
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Active Loyalty Members</div>
+            <div class="kpi-value" id="loyalty-kpi-members">0</div>
+            <div class="kpi-sub" style="color:#86198f;"><i class="fa-solid fa-crown"></i> VIP Enrolled</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Points in Circulation</div>
+            <div class="kpi-value" id="loyalty-kpi-points">0 pts</div>
+            <div class="kpi-sub">1 pt per $10 spent</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Redemption Liability</div>
+            <div class="kpi-value" id="loyalty-kpi-liability" style="color:#16a34a;">$0.00</div>
+            <div class="kpi-sub">$0.50 value per point</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Active Promo Coupons</div>
+            <div class="kpi-value" id="loyalty-kpi-coupons">0</div>
+            <div class="kpi-sub">Summer &amp; VIP Campaigns</div>
+          </div>
+        </div>
+
+        <!-- Loyalty Accounts Table -->
+        <div class="table-wrapper" style="margin-bottom:24px;">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-users-gear"></i> Customer Loyalty Accounts &amp; VIP Tiers</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Customer / Account</th>
+                <th>Contact</th>
+                <th>VIP Tier</th>
+                <th>Points Balance</th>
+                <th>Dollar Value</th>
+                <th>Lifetime Spend</th>
+                <th>Referral Code</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="loyalty-accounts-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:24px;">Loading loyalty accounts…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Promo Coupons Table -->
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-tags"></i> Promotional Coupon Codes</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Coupon Code</th>
+                <th>Discount</th>
+                <th>Type</th>
+                <th>Min Spend</th>
+                <th>Usage Limit</th>
+                <th>Times Used</th>
+                <th>Expiry Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="coupons-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:24px;">Loading promo coupons…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Tax E-Receipts ───────────────────────────────────── -->
+      <section class="view-section" id="view-receipts">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-receipt" style="color:#15803d;margin-right:8px;"></i> Electronic Tax Receipts &amp; POS Slips</h2>
+            <p class="view-subtitle">Official fiscal tax receipts with QR verification, 80mm thermal slip renderer, and automated email/WhatsApp dispatcher.</p>
+          </div>
+        </div>
+
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+              <i class="fa-solid fa-stamp"></i>
+            </div>
+            <div>
+              <strong style="color:#166534; font-size:0.95rem;">KRA E-TIMS &amp; Fiscal Compliance Engine Active</strong>
+              <div style="font-size:0.8rem; color:#15803d;">Tax PIN: P051829104A · Standard VAT 16% · Auto-QR Code Generation Enabled</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-file-invoice"></i> Settled Receipts Directory</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Receipt #</th>
+                <th>Invoice #</th>
+                <th>Client Name</th>
+                <th>Amount Paid</th>
+                <th>Payment Method</th>
+                <th>Date Settled</th>
+                <th>Actions &amp; Formats</th>
+              </tr>
+            </thead>
+            <tbody id="receipts-directory-tbody">
+              <tr><td colspan="7" style="text-align:center;padding:24px;">Loading receipts directory…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Fleet & Equipment ───────────────────────────────── -->
+      <section class="view-section" id="view-fleet">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-truck-pickup" style="color:#0284c7;margin-right:8px;"></i> Fleet &amp; Equipment Asset Management</h2>
+            <p class="view-subtitle">Track commercial mowers, aerators, utility trucks, operating engine hours, and blade service intervals.</p>
+          </div>
+          <div class="view-header-actions">
+            <button type="button" class="btn-primary" id="btn-log-fleet-service">
+              <i class="fa-solid fa-wrench"></i> + Log Equipment Maintenance
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Fleet Units</div>
+            <div class="kpi-value" id="fleet-kpi-total">0</div>
+            <div class="kpi-sub">Trucks, Mowers, Trimmers</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Operational Ready</div>
+            <div class="kpi-value" id="fleet-kpi-active" style="color:#16a34a;">0</div>
+            <div class="kpi-sub">Field Deployed</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Service Overdue / Due</div>
+            <div class="kpi-value" id="fleet-kpi-due" style="color:#d97706;">0</div>
+            <div class="kpi-sub">Blade &amp; Oil Check Needed</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Logged Engine Hours</div>
+            <div class="kpi-value" id="fleet-kpi-hours">0 hrs</div>
+            <div class="kpi-sub">Fleet Cumulative</div>
+          </div>
+        </div>
+
+        <!-- Equipment Assets Table -->
+        <div class="table-wrapper" style="margin-bottom:24px;">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-gears"></i> Equipment Fleet Directory</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Asset Tag / Name</th>
+                <th>Type &amp; Model</th>
+                <th>Assigned Crew</th>
+                <th>Hours Meter</th>
+                <th>Last Service</th>
+                <th>Next Service Due</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="fleet-table-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:24px;">Loading fleet equipment…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Maintenance Logs Table -->
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-clock-rotate-left"></i> Service &amp; Maintenance Logs</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Log Date</th>
+                <th>Equipment Asset</th>
+                <th>Service Type</th>
+                <th>Operating Hours</th>
+                <th>Performed By</th>
+                <th>Cost ($)</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="fleet-logs-tbody">
+              <tr><td colspan="7" style="text-align:center;padding:24px;">Loading service logs…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: GPS Timesheets ──────────────────────────────────── -->
+      <section class="view-section" id="view-timesheets">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-clock-rotate-left" style="color:#4f46e5;margin-right:8px;"></i> GPS Geo-Fenced Timesheets</h2>
+            <p class="view-subtitle">Live on-site crew time tracking with mobile GPS proximity verification and labor cost calculations.</p>
+          </div>
+          <div class="view-header-actions">
+            <button type="button" class="btn-primary" id="btn-clockin-terminal-toggle">
+              <i class="fa-solid fa-fingerprint"></i> Crew Clock-In Terminal
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Clock In Terminal Panel (Collapsible) -->
+        <div id="timesheet-clockin-panel" style="background:#fff; border-radius:12px; border:1px solid var(--border-color); padding:20px; box-shadow:var(--shadow-sm); margin-bottom:20px; display:none;">
+          <h3 style="margin:0 0 10px; font-size:1rem; font-weight:700; color:var(--text-dark);">
+            <i class="fa-solid fa-location-crosshairs" style="color:#4f46e5;margin-right:6px;"></i> Live GPS Clock-In Console
+          </h3>
+          <form id="clockin-form">
+            <div class="form-grid-3" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:14px;">
+              <div class="form-group">
+                <label style="font-size:0.8rem; font-weight:600;">Crew Member *</label>
+                <select id="clockin-crew" class="form-control" required>
+                  <option value="Marcus Vance">Marcus Vance (Lead)</option>
+                  <option value="Leo Sterling">Leo Sterling (Technician)</option>
+                  <option value="Dave Miller">Dave Miller (Operator)</option>
+                  <option value="Sarah Jenkins">Sarah Jenkins (Specialist)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-size:0.8rem; font-weight:600;">Active Work Order *</label>
+                <select id="clockin-wo" class="form-control" required>
+                  <option value="">-- Select Work Order --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-size:0.8rem; font-weight:600;">Hourly Rate ($)</label>
+                <input type="number" id="clockin-rate" value="28.50" step="0.50" class="form-control">
+              </div>
+            </div>
+
+            <div style="background:#f8fafc; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.85rem; color:var(--text-medium);"><i class="fa-solid fa-satellite"></i> GPS Coordinates: <strong id="gps-status-coords">Detecting GPS location…</strong></span>
+              <button type="button" class="btn-secondary btn-sm" id="btn-refresh-gps"><i class="fa-solid fa-location-arrow"></i> Refresh GPS</button>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <button type="submit" class="btn-primary" style="background:#4f46e5; border-color:#4338ca;">
+                <i class="fa-solid fa-play"></i> Start Clock-In Timer
+              </button>
+              <button type="button" class="btn-secondary" onclick="document.getElementById('timesheet-clockin-panel').style.display='none'">
+                Close Console
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-table-list"></i> Field Timesheet Logs</h3>
+            <button type="button" class="btn-secondary btn-sm" id="btn-refresh-timesheets">
+              <i class="fa-solid fa-rotate"></i> Refresh
+            </button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Crew Member</th>
+                <th>Work Order</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Hours</th>
+                <th>Labor Cost</th>
+                <th>GPS Proximity</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="timesheets-table-tbody">
+              <tr><td colspan="9" style="text-align:center;padding:24px;">Loading timesheets…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Purchase Orders ─────────────────────────────────── -->
+      <section class="view-section" id="view-purchasing">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-cart-flatbed" style="color:#0284c7;margin-right:8px;"></i> Vendor Purchase Orders &amp; Restocking</h2>
+            <p class="view-subtitle">Manage supplier purchase orders, restock inventory items with 1 click, and track procurement spend.</p>
+          </div>
+          <div class="view-header-actions">
+            <button type="button" class="btn-primary" id="btn-new-po">
+              <i class="fa-solid fa-plus"></i> + Create Purchase Order
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Active POs</div>
+            <div class="kpi-value" id="po-kpi-count">0</div>
+            <div class="kpi-sub">Open Supplier Orders</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Pending Delivery</div>
+            <div class="kpi-value" id="po-kpi-pending" style="color:#d97706;">0</div>
+            <div class="kpi-sub">Awaiting Warehouse Arrival</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Spend Committed</div>
+            <div class="kpi-value" id="po-kpi-spend">$0.00</div>
+            <div class="kpi-sub">Supplies &amp; Turf Seed</div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-file-invoice"></i> Vendor Purchase Orders List</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>PO #</th>
+                <th>Vendor / Supplier</th>
+                <th>Item Ordered</th>
+                <th>Qty</th>
+                <th>Unit Cost</th>
+                <th>Total Cost</th>
+                <th>Date Ordered</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="po-table-tbody">
+              <tr><td colspan="9" style="text-align:center;padding:24px;">Loading purchase orders…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── View: Dunning & Overdue ────────────────────────────────── -->
+      <section class="view-section" id="view-dunning">
+        <div class="view-header">
+          <div>
+            <h2 class="view-title"><i class="fa-solid fa-hand-holding-dollar" style="color:#dc2626;margin-right:8px;"></i> Automated Dunning &amp; Collections</h2>
+            <p class="view-subtitle">Odoo-style automated receivable aging scans and 1-click WhatsApp/SMS payment recovery links.</p>
+          </div>
+          <div class="view-header-actions">
+            <button type="button" class="btn-primary" id="btn-run-dunning" style="background:#dc2626;border-color:#b91c1c;">
+              <i class="fa-solid fa-magnifying-glass-dollar"></i> Run Dunning Scan
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Overdue Receivables</div>
+            <div class="kpi-value" id="dunning-kpi-overdue" style="color:#dc2626;">$0.00</div>
+            <div class="kpi-sub">Uncollected Revenue</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Overdue Invoices</div>
+            <div class="kpi-value" id="dunning-kpi-count">0</div>
+            <div class="kpi-sub">Past Payment Terms</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Critical (> 30 Days)</div>
+            <div class="kpi-value" id="dunning-kpi-critical" style="color:#b91c1c;">0</div>
+            <div class="kpi-sub">Escalation Required</div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <h3 style="margin:0; font-size:1rem; font-weight:700;"><i class="fa-solid fa-triangle-exclamation"></i> Overdue Collections Queue &amp; Reminder Dispatch</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Client Name</th>
+                <th>Phone</th>
+                <th>Due Date</th>
+                <th>Days Overdue</th>
+                <th>Balance Due</th>
+                <th>Severity</th>
+                <th>1-Click Reminder Actions</th>
+              </tr>
+            </thead>
+            <tbody id="dunning-table-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:24px;">Click "Run Dunning Scan" to detect overdue accounts…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── Mobile Bottom Navigation ─────────────────────── -->
+      <nav class="mobile-bottom-nav" aria-label="Mobile quick navigation">
+        <button type="button" class="mobile-nav-item active" data-view="overview" aria-label="Overview">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Overview</span>
+        </button>
+        <button type="button" class="mobile-nav-item" data-view="queue" aria-label="Queue">
+          <i class="fa-solid fa-inbox"></i>
+          <span>Queue</span>
+          <span class="mobile-nav-badge" id="mobile-queue-badge" style="display:none;">0</span>
+        </button>
+        <button type="button" class="mobile-nav-item" data-view="active" aria-label="Active">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Active</span>
+        </button>
+        <button type="button" class="mobile-nav-item" data-view="invoices" aria-label="Invoices">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+          <span>Invoices</span>
+          <span class="mobile-nav-badge" id="mobile-invoices-badge" style="display:none;">0</span>
+        </button>
+        <button type="button" class="mobile-nav-item" id="mobile-menu-trigger" aria-label="Open Full Navigation Menu">
+          <i class="fa-solid fa-bars"></i>
+          <span>Menu</span>
+        </button>
+      </nav>
+
     </div><!-- /.main-content -->
   </div><!-- /#app -->
 
@@ -1028,6 +1937,625 @@
       </div>
       <div class="modal-body" id="invoice-view-content">
         <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       DIGITAL QUOTE CREATION & EDIT MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="quote-modal" role="dialog" aria-modal="true" aria-labelledby="quote-modal-title" aria-hidden="true">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 id="quote-modal-title">Create Digital Estimate &amp; Proposal</h2>
+        <button class="modal-close" id="quote-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="quote-form" novalidate>
+          <input type="hidden" id="quote-edit-id" value="">
+          <input type="hidden" id="quote-wo-id" value="">
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="quote-client-name">Client Name *</label>
+              <input type="text" id="quote-client-name" required placeholder="e.g. Eleanor Vance">
+            </div>
+            <div class="form-group">
+              <label for="quote-client-phone">Client Phone (for WhatsApp link)</label>
+              <input type="text" id="quote-client-phone" placeholder="e.g. (555) 234-5678">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="quote-client-email">Client Email Address</label>
+              <input type="email" id="quote-client-email" placeholder="e.g. eleanor.vance@example.com">
+            </div>
+            <div class="form-group">
+              <label for="quote-property-address">Property Address *</label>
+              <input type="text" id="quote-property-address" required placeholder="e.g. 742 Evergreen Terrace, Springfield">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="quote-service-tier">Service Package / Tier Title</label>
+              <input type="text" id="quote-service-tier" placeholder="e.g. Premium Commercial Turf Restoration">
+            </div>
+            <div class="form-group">
+              <label for="quote-valid-until">Proposal Valid Until</label>
+              <input type="date" id="quote-valid-until">
+            </div>
+          </div>
+
+          <!-- Line Items Table -->
+          <div class="table-wrapper" style="margin: 16px 0 12px 0;">
+            <div class="table-header">
+              <h4 style="margin:0;font-size:0.95rem;font-weight:700;"><i class="fa-solid fa-list-ol"></i> Itemized Service Scope</h4>
+              <button type="button" class="btn-secondary btn-sm" id="btn-add-quote-item">
+                <i class="fa-solid fa-plus"></i> Add Line Item
+              </button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:50%;">Service Description</th>
+                  <th style="width:15%;">Qty</th>
+                  <th style="width:20%;">Unit Price ($)</th>
+                  <th style="width:15%;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="quote-items-tbody">
+                <!-- Rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Financial Calculation Box -->
+          <div class="invoice-calc-box">
+            <div class="calc-row">
+              <span>Subtotal:</span>
+              <strong id="quote-calc-subtotal">$0.00</strong>
+            </div>
+            <div class="calc-row flex-row-align">
+              <label for="quote-discount-amount">Discount ($):</label>
+              <input type="number" id="quote-discount-amount" value="0.00" step="1.00" min="0" class="input-inline-sm">
+              <span id="quote-calc-discount" class="calc-amount-label">-$0.00</span>
+            </div>
+            <div class="calc-row flex-row-align">
+              <span>Sales Tax (6.5%):</span>
+              <strong id="quote-calc-tax">+$0.00</strong>
+            </div>
+            <div class="calc-row calc-total-row">
+              <span>Estimated Client Total:</span>
+              <strong id="quote-calc-total">$0.00</strong>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label for="quote-notes">Scope Details &amp; Custom Terms</label>
+            <textarea id="quote-notes" rows="2" placeholder="e.g. Includes aeration, overseeding, and organic soil conditioner. All materials guaranteed for 60 days."></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="quote-form-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary" id="quote-form-save-btn">
+              <i class="fa-solid fa-file-signature"></i> Save &amp; Generate Share Link
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       PHOTO PROOF UPLOAD MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="photo-upload-modal" role="dialog" aria-modal="true" aria-labelledby="photo-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="photo-modal-title">Upload Proof of Work Photo</h2>
+        <button class="modal-close" id="photo-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="photo-upload-form" novalidate>
+          <input type="hidden" id="photo-wo-id" value="">
+
+          <div class="form-group">
+            <label for="photo-type">Photo Classification *</label>
+            <select id="photo-type" required>
+              <option value="after">After Completion (Proof of Work)</option>
+              <option value="before">Before Service (Site Condition)</option>
+              <option value="inspection">Supervisor Quality Inspection</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="photo-url">Photo Image URL or Base64 *</label>
+            <input type="url" id="photo-url" required placeholder="https://images.unsplash.com/... or paste image URL">
+            <small style="color:var(--text-light);font-size:0.8rem;margin-top:4px;display:block;">Paste a URL or choose a preset photo sample below:</small>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+            <button type="button" class="btn-secondary btn-sm preset-photo-btn" data-url="https://images.unsplash.com/photo-1558904541-efa843a96f01?w=800&auto=format&fit=crop">
+              🌿 Lush Green Lawn
+            </button>
+            <button type="button" class="btn-secondary btn-sm preset-photo-btn" data-url="https://images.unsplash.com/photo-1560749003-f4b1e17e2dff?w=800&auto=format&fit=crop">
+              💧 Smart Controller
+            </button>
+            <button type="button" class="btn-secondary btn-sm preset-photo-btn" data-url="https://images.unsplash.com/photo-1592417817038-d13fd7342605?w=800&auto=format&fit=crop">
+              🍂 Before Lawn
+            </button>
+          </div>
+
+          <div class="form-group">
+            <label for="photo-caption">Description / Crew Notes</label>
+            <input type="text" id="photo-caption" placeholder="e.g. Front yard cut at 3.5 inches with crisp edge lines along sidewalk.">
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="photo-upload-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary">
+              <i class="fa-solid fa-cloud-arrow-up"></i> Upload &amp; Attach to Work Order
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       RECURRING CONTRACT MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="contract-modal" role="dialog" aria-modal="true" aria-labelledby="contract-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="contract-modal-title">New Recurring Maintenance Agreement</h2>
+        <button class="modal-close" id="contract-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="contract-form" novalidate>
+          <input type="hidden" id="contract-edit-id" value="">
+
+          <div class="form-group">
+            <label for="contract-client-name">Client Name *</label>
+            <input type="text" id="contract-client-name" required placeholder="e.g. Greenfield Apartments HOA">
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="contract-email">Email</label>
+              <input type="email" id="contract-email" placeholder="hoa@greenfieldapts.org">
+            </div>
+            <div class="form-group">
+              <label for="contract-phone">Phone</label>
+              <input type="text" id="contract-phone" placeholder="(555) 456-7890">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="contract-address">Property Address *</label>
+            <input type="text" id="contract-address" required placeholder="150 Greenfield Parkway, North Hills">
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="contract-service-type">Service Plan Type</label>
+              <select id="contract-service-type">
+                <option value="Commercial Grounds Maintenance">Commercial Grounds Maintenance</option>
+                <option value="Residential Lawn Care & Edge Trimming">Residential Lawn Care & Edge Trimming</option>
+                <option value="Full Estate Grounds & Shrub Care">Full Estate Grounds & Shrub Care</option>
+                <option value="Seasonal Cleanup & Turf Aeration">Seasonal Cleanup & Turf Aeration</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="contract-frequency">Frequency</label>
+              <select id="contract-frequency">
+                <option value="weekly">Weekly (Every 7 Days)</option>
+                <option value="bi_weekly">Bi-Weekly (Every 14 Days)</option>
+                <option value="monthly">Monthly (Every 30 Days)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="contract-rate">Rate Per Visit ($) *</label>
+              <input type="number" id="contract-rate" step="1.00" min="0" required placeholder="120.00">
+            </div>
+            <div class="form-group">
+              <label for="contract-next-date">Next Scheduled Date</label>
+              <input type="date" id="contract-next-date" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="contract-crew">Assigned Crew / Lead</label>
+            <select id="contract-crew">
+              <option value="Team Alpha (Marcus Vance)">Team Alpha (Marcus Vance)</option>
+              <option value="Team Beta (Elena Rostova)">Team Beta (Elena Rostova)</option>
+              <option value="Team Gamma (Diego Alvarez)">Team Gamma (Diego Alvarez)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="contract-notes">Special Instructions &amp; Gate Codes</label>
+            <textarea id="contract-notes" rows="2" placeholder="Gate combination #1288; service prior to 10 AM."></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="contract-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary">
+              <i class="fa-solid fa-repeat"></i> Save Agreement
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       CLIENT CRM PROFILE MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="client-modal" role="dialog" aria-modal="true" aria-labelledby="client-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="client-modal-title">Client &amp; Property Profile</h2>
+        <button class="modal-close" id="client-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="client-form" novalidate>
+          <input type="hidden" id="client-edit-id" value="">
+
+          <div class="form-group">
+            <label for="client-form-name">Client / Company Name *</label>
+            <input type="text" id="client-form-name" required placeholder="e.g. Apex Industrial Park">
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="client-form-phone">Phone Number</label>
+              <input type="text" id="client-form-phone" placeholder="(555) 890-1234">
+            </div>
+            <div class="form-group">
+              <label for="client-form-email">Email Address</label>
+              <input type="email" id="client-form-email" placeholder="facilities@apexpark.com">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="client-form-address">Property Address</label>
+              <input type="text" id="client-form-address" placeholder="1200 Innovation Way, Tech Park">
+            </div>
+            <div class="form-group">
+              <label for="client-form-zone">Territory Zone</label>
+              <select id="client-form-zone">
+                <option value="North Zone">North Zone</option>
+                <option value="South Zone">South Zone</option>
+                <option value="East Zone">East Zone</option>
+                <option value="West Zone">West Zone</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="client-form-size">Turf Area (Sq Ft)</label>
+              <input type="number" id="client-form-size" placeholder="8500">
+            </div>
+            <div class="form-group">
+              <label for="client-form-grass">Grass / Soil Type</label>
+              <input type="text" id="client-form-grass" placeholder="Kentucky Bluegrass / Tall Fescue">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="client-form-gate">Gate Code / Access Protocol</label>
+            <input type="text" id="client-form-gate" placeholder="e.g. #4491 or Check in with Security">
+          </div>
+
+          <div class="form-group">
+            <label for="client-form-instructions">Crew Instructions &amp; Pet Notes</label>
+            <textarea id="client-form-instructions" rows="2" placeholder="e.g. Friendly dog in back; latch gate after completion."></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="client-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary">
+              <i class="fa-solid fa-floppy-disk"></i> Save Client Profile
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       SHAREABLE CLIENT LINKS HUB MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="share-links-modal" role="dialog" aria-modal="true" aria-labelledby="share-links-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="share-links-modal-title"><i class="fa-solid fa-share-nodes" style="color:var(--primary);margin-right:8px;"></i> Customer Links &amp; Dispatch Hub</h2>
+        <button class="modal-close" id="share-links-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="share-links-modal-body">
+        <!-- Rendered dynamically by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       MPESA STK PUSH MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="mpesa-stk-modal" role="dialog" aria-modal="true" aria-labelledby="mpesa-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="mpesa-modal-title"><i class="fa-solid fa-mobile-screen-button" style="color:#16a34a;margin-right:8px;"></i> Send Lipa Na M-Pesa Prompt</h2>
+        <button class="modal-close" id="mpesa-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="mpesa-modal-form" novalidate>
+          <div class="form-group">
+            <label for="mpesa-modal-inv">Target Open Invoice *</label>
+            <select id="mpesa-modal-inv" required class="form-control">
+              <option value="">-- Choose Invoice --</option>
+            </select>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="mpesa-modal-phone">Phone Number (2547XXXXXXXX) *</label>
+              <input type="text" id="mpesa-modal-phone" required placeholder="254700554433">
+            </div>
+            <div class="form-group">
+              <label for="mpesa-modal-amount">Amount to Charge ($) *</label>
+              <input type="number" id="mpesa-modal-amount" required step="0.01">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="mpesa-modal-name">Client Name</label>
+            <input type="text" id="mpesa-modal-name" placeholder="Client Name">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="mpesa-modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary" style="background:#16a34a;border-color:#15803d;">
+              <i class="fa-solid fa-bolt"></i> Send STK Push PIN Prompt
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       COUPON CREATION MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="coupon-modal" role="dialog" aria-modal="true" aria-labelledby="coupon-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="coupon-modal-title"><i class="fa-solid fa-tag" style="color:#86198f;margin-right:8px;"></i> Create Promo Coupon Code</h2>
+        <button class="modal-close" id="coupon-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="coupon-modal-form" novalidate>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="cp-code">Coupon Code *</label>
+              <input type="text" id="cp-code" required placeholder="e.g. AUTUMN15" style="text-transform:uppercase;">
+            </div>
+            <div class="form-group">
+              <label for="cp-discount">Discount Value *</label>
+              <input type="number" id="cp-discount" required placeholder="15" step="0.5">
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="cp-type">Discount Type</label>
+              <select id="cp-type">
+                <option value="percentage">Percentage (%)</option>
+                <option value="fixed">Fixed Amount ($)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="cp-min-spend">Minimum Spend ($)</label>
+              <input type="number" id="cp-min-spend" value="50" step="5">
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="cp-max-uses">Max Usage Limit</label>
+              <input type="number" id="cp-max-uses" value="100">
+            </div>
+            <div class="form-group">
+              <label for="cp-expiry">Expiry Date</label>
+              <input type="date" id="cp-expiry">
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="coupon-modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary" style="background:#86198f;border-color:#701a75;">
+              <i class="fa-solid fa-floppy-disk"></i> Save Promo Coupon
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       LOYALTY ADJUSTMENT MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="loyalty-adjust-modal" role="dialog" aria-modal="true" aria-labelledby="loyalty-adj-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="loyalty-adj-title"><i class="fa-solid fa-gift" style="color:#86198f;margin-right:8px;"></i> Adjust Customer Loyalty Points</h2>
+        <button class="modal-close" id="loyalty-adj-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="loyalty-adjust-form" novalidate>
+          <input type="hidden" id="adj-phone" value="">
+          <div class="form-group">
+            <label>Customer Account</label>
+            <div id="adj-customer-name" style="font-weight:700;font-size:1.05rem;color:var(--text-dark);">Arthur Pendelton</div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="adj-points-delta">Points to Add / Deduct *</label>
+              <input type="number" id="adj-points-delta" required placeholder="e.g. 50 or -20">
+            </div>
+            <div class="form-group">
+              <label for="adj-tier-select">Update VIP Tier</label>
+              <select id="adj-tier-select">
+                <option value="bronze">Bronze Tier</option>
+                <option value="silver">Silver Member</option>
+                <option value="gold">Gold VIP</option>
+                <option value="platinum">Platinum Elite</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="adj-reason">Reason / Reference Notes *</label>
+            <input type="text" id="adj-reason" required placeholder="e.g. VIP goodwill adjustment / referral bonus">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="loyalty-adj-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary" style="background:#86198f;border-color:#701a75;">
+              <i class="fa-solid fa-check"></i> Apply Adjustment
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       FLEET MAINTENANCE SERVICE MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="fleet-service-modal" role="dialog" aria-modal="true" aria-labelledby="fleet-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="fleet-modal-title"><i class="fa-solid fa-wrench" style="color:#0284c7;margin-right:8px;"></i> Log Equipment Maintenance</h2>
+        <button class="modal-close" id="fleet-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="fleet-service-form" novalidate>
+          <div class="form-group">
+            <label for="fleet-eq-select">Select Equipment Asset *</label>
+            <select id="fleet-eq-select" required class="form-control">
+              <option value="">-- Choose Equipment --</option>
+            </select>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="fleet-service-type">Service Performed *</label>
+              <select id="fleet-service-type">
+                <option value="Blade Sharpening & Balancing">Blade Sharpening &amp; Balancing</option>
+                <option value="Engine Oil & Filter Change">Engine Oil &amp; Filter Change</option>
+                <option value="Hydraulic Fluid & Belt Inspection">Hydraulic Fluid &amp; Belt Inspection</option>
+                <option value="Air Filter & Spark Plug Replacement">Air Filter &amp; Spark Plug Replacement</option>
+                <option value="Tire Pressure & Deck Leveling">Tire Pressure &amp; Deck Leveling</option>
+                <option value="Comprehensive 100-Hour Overhaul">Comprehensive 100-Hour Overhaul</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="fleet-service-cost">Total Cost ($)</label>
+              <input type="number" id="fleet-service-cost" value="45.00" step="5">
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="fleet-hours-at-service">Current Operating Hours</label>
+              <input type="number" id="fleet-hours-at-service" placeholder="e.g. 148">
+            </div>
+            <div class="form-group">
+              <label for="fleet-performed-by">Technician / Performer</label>
+              <input type="text" id="fleet-performed-by" value="Leo Sterling (Fleet Tech)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="fleet-service-notes">Maintenance Notes &amp; Parts Replaced</label>
+            <textarea id="fleet-service-notes" rows="2" placeholder="e.g. Sharpened 3 high-lift commercial blades, torqued spindle bolts to spec."></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="fleet-modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary">
+              <i class="fa-solid fa-floppy-disk"></i> Record Service &amp; Reset Interval
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       PURCHASE ORDER MODAL
+       ====================================================== -->
+  <div class="modal-overlay" id="po-modal" role="dialog" aria-modal="true" aria-labelledby="po-modal-title" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="po-modal-title"><i class="fa-solid fa-cart-flatbed" style="color:#0284c7;margin-right:8px;"></i> New Vendor Purchase Order</h2>
+        <button class="modal-close" id="po-modal-close-btn" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="po-modal-form" novalidate>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="po-vendor-name">Supplier / Vendor *</label>
+              <input type="text" id="po-vendor-name" required placeholder="e.g. SiteOne Turf Supply">
+            </div>
+            <div class="form-group">
+              <label for="po-link-item">Inventory Warehouse Item</label>
+              <select id="po-link-item" class="form-control">
+                <option value="">-- Choose Warehouse Item --</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="po-item-desc">Item Description *</label>
+            <input type="text" id="po-item-desc" required placeholder="e.g. Kentucky Bluegrass Turf Seed 50lb Bag">
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="po-qty">Quantity Ordered *</label>
+              <input type="number" id="po-qty" required value="10" min="1">
+            </div>
+            <div class="form-group">
+              <label for="po-unit-cost">Unit Cost ($) *</label>
+              <input type="number" id="po-unit-cost" required value="48.50" step="0.50">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="po-expected-date">Expected Delivery Date</label>
+            <input type="date" id="po-expected-date">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="po-modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn-primary">
+              <i class="fa-solid fa-check"></i> Issue Purchase Order
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

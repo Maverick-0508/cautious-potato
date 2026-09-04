@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Estimate & Scope Approval | Lawn Craft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary: #15803d;
+      --primary-hover: #166534;
+      --primary-light: #f0fdf4;
+      --border: #e2e8f0;
+      --accent: #ca8a04;
+      --danger: #dc2626;
+      --radius: 14px;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: #f8fafc;
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 32px 16px 64px;
+    }
+    .quote-container {
+      max-width: 820px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .quote-header {
+      background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+      color: #ffffff;
+      padding: 36px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .brand-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-sub {
+      color: #bbf7d0;
+      font-size: 14px;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .quote-badge-box {
+      text-align: right;
+    }
+    .quote-number {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-sent { background: #fef08a; color: #854d0e; }
+    .status-approved { background: #86efac; color: #14532d; }
+    .status-draft { background: #e2e8f0; color: #334155; }
+
+    .quote-body {
+      padding: 40px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .meta-card h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .meta-card p {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .meta-card span {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .service-banner {
+      background: var(--primary-light);
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .service-banner i {
+      font-size: 24px;
+      color: var(--primary);
+    }
+    .service-banner h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #14532d;
+    }
+    .service-banner p {
+      font-size: 13px;
+      color: #166534;
+    }
+
+    .section-heading {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 28px;
+    }
+    .items-table th {
+      background: #f1f5f9;
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .items-table td {
+      padding: 14px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .items-table tr:last-child td {
+      border-bottom: none;
+    }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+
+    .totals-wrap {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 36px;
+    }
+    .totals-box {
+      width: 320px;
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      padding: 6px 0;
+      color: var(--text-muted);
+    }
+    .total-row.grand-total {
+      border-top: 2px dashed var(--border);
+      margin-top: 8px;
+      padding-top: 12px;
+      font-size: 18px;
+      font-weight: 800;
+      color: #14532d;
+    }
+
+    .guarantee-box {
+      background: #fafaf9;
+      border-left: 4px solid var(--primary);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 36px;
+    }
+    .guarantee-box h5 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .guarantee-box p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .approval-card {
+      background: #ffffff;
+      border: 2px solid #86efac;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 4px 12px rgba(22, 101, 52, 0.06);
+    }
+    .approval-card.already-approved {
+      border-color: #22c55e;
+      background: #f0fdf4;
+    }
+    .approval-card h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #14532d;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .approval-card p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+    }
+    .checkbox-wrap {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .checkbox-wrap input {
+      margin-top: 4px;
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+    .checkbox-wrap label {
+      font-size: 13px;
+      color: var(--text-main);
+      line-height: 1.5;
+    }
+    .btn-approve {
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 16px 24px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .btn-approve:hover {
+      background: var(--primary-hover);
+    }
+    .btn-approve:active {
+      transform: scale(0.99);
+    }
+    .btn-approve:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+    .actions-bar {
+      margin-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+
+    .success-banner {
+      display: none;
+      background: #f0fdf4;
+      border: 2px solid #22c55e;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      margin-top: 20px;
+    }
+    .success-banner i {
+      font-size: 44px;
+      color: #16a34a;
+      margin-bottom: 12px;
+    }
+    .success-banner h3 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #14532d;
+      margin-bottom: 6px;
+    }
+
+    @media print {
+      body { background: #ffffff; padding: 0; }
+      .quote-container { box-shadow: none; border: none; }
+      .approval-card, .actions-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="quote-container" id="quoteContainer">
+    <div class="quote-header">
+      <div>
+        <div class="brand-title">
+          <i class="fa-solid fa-seedling"></i> Lawn Craft
+        </div>
+        <div class="brand-sub">Professional Grounds & Turf Management</div>
+      </div>
+      <div class="quote-badge-box">
+        <div class="quote-number" id="quoteIdDisplay">Quote #QTE-Loading</div>
+        <div><span class="status-pill status-sent" id="statusPill"><i class="fa-regular fa-clock"></i> Pending Approval</span></div>
+      </div>
+    </div>
+
+    <div class="quote-body">
+      <div class="meta-grid">
+        <div class="meta-card">
+          <h4>Client & Contact</h4>
+          <p id="clientName">Loading Client…</p>
+          <span id="clientContact">loading@example.com</span>
+        </div>
+        <div class="meta-card">
+          <h4>Service Location</h4>
+          <p id="propertyAddress">Loading Address…</p>
+          <span>Confirmed Service Area</span>
+        </div>
+        <div class="meta-card">
+          <h4>Quote Date & Validity</h4>
+          <p id="quoteDate">Issued: Loading…</p>
+          <span id="validUntil">Valid until: 14 days</span>
+        </div>
+      </div>
+
+      <div class="service-banner">
+        <i class="fa-solid fa-shield-halved"></i>
+        <div>
+          <h3 id="serviceTierTitle">Custom Grounds Care Package</h3>
+          <p id="serviceNotes">All equipment, premium materials, and licensed labor included.</p>
+        </div>
+      </div>
+
+      <h3 class="section-heading"><i class="fa-solid fa-list-check"></i> Itemized Scope of Work</h3>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Description / Task</th>
+            <th class="text-center" style="width: 80px;">Qty</th>
+            <th class="text-right" style="width: 120px;">Unit Rate</th>
+            <th class="text-right" style="width: 120px;">Total</th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody">
+          <tr><td colspan="4" class="text-center">Loading line items…</td></tr>
+        </tbody>
+      </table>
+
+      <div class="totals-wrap">
+        <div class="totals-box">
+          <div class="total-row">
+            <span>Subtotal</span>
+            <span id="subtotalDisplay">$0.00</span>
+          </div>
+          <div class="total-row" id="discountRow" style="display:none; color: #16a34a;">
+            <span>Special Discount</span>
+            <span id="discountDisplay">-$0.00</span>
+          </div>
+          <div class="total-row">
+            <span>State / County Tax</span>
+            <span id="taxDisplay">$0.00</span>
+          </div>
+          <div class="total-row grand-total">
+            <span>Total Estimate</span>
+            <span id="totalDisplay">$0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="guarantee-box">
+        <h5><i class="fa-solid fa-handshake-angle"></i> The Lawn Craft Quality Commitment</h5>
+        <p>We stand behind our work 100%. Our field crew operates high-precision commercial mowers, applies environmentally compliant fertilizers, and cleans all hard surfaces upon job completion.</p>
+      </div>
+
+      <!-- Approval Form -->
+      <div class="approval-card" id="approvalCard">
+        <h3><i class="fa-solid fa-file-signature"></i> Client Authorization & Sign-Off</h3>
+        <p>To confirm this estimate and schedule your field crew, please enter your full name below to electronically authorize this work order.</p>
+        
+        <form id="signForm">
+          <div class="form-group">
+            <label for="signerName">Authorized Signer Full Name *</label>
+            <input type="text" id="signerName" class="form-input" placeholder="e.g. Eleanor Vance" required>
+          </div>
+          <div class="form-group">
+            <label for="clientNotesInput">Optional Service Notes / Gate Codes</label>
+            <input type="text" id="clientNotesInput" class="form-input" placeholder="e.g. Gate code #4491, side gate will be unlocked">
+          </div>
+          <div class="checkbox-wrap">
+            <input type="checkbox" id="termsCheck" required>
+            <label for="termsCheck">I authorize Lawn Craft to perform the specified services on this property according to the line items and total pricing above.</label>
+          </div>
+          <button type="submit" class="btn-approve" id="approveBtn">
+            <i class="fa-solid fa-check"></i> Accept Estimate & Confirm Work Order
+          </button>
+        </form>
+      </div>
+
+      <div class="success-banner" id="successBanner">
+        <i class="fa-solid fa-circle-check"></i>
+        <h3>Estimate Accepted & Confirmed!</h3>
+        <p id="successMsg">Thank you! Your work order has been placed on the supervisor scheduling board. Our field dispatch team will arrive on schedule.</p>
+        <div style="margin-top: 16px;">
+          <a href="#" id="trackJobLink" class="btn-secondary" style="background:var(--primary); color:#ffffff; border:none;">
+            <i class="fa-solid fa-location-crosshairs"></i> Track Live Job Status
+          </a>
+        </div>
+      </div>
+
+      <div class="actions-bar">
+        <button type="button" class="btn-secondary" onclick="window.print()">
+          <i class="fa-solid fa-print"></i> Print / Download PDF
+        </button>
+        <a href="mailto:dispatch@lawncraft.com?subject=Question regarding Quote" class="btn-secondary">
+          <i class="fa-solid fa-envelope"></i> Have a Question? Email Dispatch
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const pathParts = window.location.pathname.split('/');
+    const quoteId = pathParts[pathParts.length - 1] || 'QTE-2026-001';
+    let currentQuote = null;
+
+    async function loadQuote() {
+      try {
+        const res = await fetch(`/api/public/quote/${encodeURIComponent(quoteId)}`);
+        if (!res.ok) throw new Error('Quote not found or link has expired.');
+        const q = await res.json();
+        currentQuote = q;
+        renderQuote(q);
+      } catch (err) {
+        document.getElementById('quoteContainer').innerHTML = `
+          <div style="padding: 60px 40px; text-align: center;">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size: 48px; color: var(--danger); margin-bottom: 16px;"></i>
+            <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Estimate Not Found</h2>
+            <p style="color: var(--text-muted); margin-bottom: 24px;">${err.message}</p>
+            <a href="/" class="btn-secondary">Return to Lawn Craft</a>
+          </div>
+        `;
+      }
+    }
+
+    function renderQuote(q) {
+      document.title = `Estimate ${q.id} - ${q.client_name} | Lawn Craft`;
+      document.getElementById('quoteIdDisplay').textContent = `Quote #${q.id}`;
+      document.getElementById('clientName').textContent = q.client_name;
+      document.getElementById('clientContact').textContent = `${q.client_email || ''} ${q.client_phone ? '· ' + q.client_phone : ''}`;
+      document.getElementById('propertyAddress').textContent = q.property_address;
+      document.getElementById('quoteDate').textContent = `Issued: ${new Date(q.created_at).toLocaleDateString()}`;
+      if (q.valid_until) {
+        document.getElementById('validUntil').textContent = `Valid until: ${new Date(q.valid_until).toLocaleDateString()}`;
+      }
+      if (q.service_tier) {
+        document.getElementById('serviceTierTitle').textContent = q.service_tier;
+      }
+      if (q.notes) {
+        document.getElementById('serviceNotes').textContent = q.notes;
+      }
+
+      // Status Pill
+      const statusPill = document.getElementById('statusPill');
+      if (q.status === 'approved' || q.status === 'accepted') {
+        statusPill.className = 'status-pill status-approved';
+        statusPill.innerHTML = '<i class="fa-solid fa-circle-check"></i> Approved & Confirmed';
+        showAlreadyApproved(q);
+      } else {
+        statusPill.className = 'status-pill status-sent';
+        statusPill.innerHTML = '<i class="fa-regular fa-clock"></i> Pending Authorization';
+      }
+
+      // Line items
+      let items = [];
+      try {
+        items = typeof q.items_json === 'string' ? JSON.parse(q.items_json) : (q.items_json || []);
+      } catch (_) { items = []; }
+
+      const tbody = document.getElementById('itemsBody');
+      if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center" style="color:var(--text-muted)">Standard comprehensive lawn care package</td></tr>`;
+      } else {
+        tbody.innerHTML = items.map(item => `
+          <tr>
+            <td><strong>${item.description}</strong></td>
+            <td class="text-center">${item.quantity || 1}</td>
+            <td class="text-right">$${Number(item.unit_price || 0).toFixed(2)}</td>
+            <td class="text-right"><strong>$${Number(item.amount || (item.quantity * item.unit_price) || 0).toFixed(2)}</strong></td>
+          </tr>
+        `).join('');
+      }
+
+      document.getElementById('subtotalDisplay').textContent = `$${Number(q.subtotal || 0).toFixed(2)}`;
+      if (q.discount > 0) {
+        document.getElementById('discountRow').style.display = 'flex';
+        document.getElementById('discountDisplay').textContent = `-$${Number(q.discount).toFixed(2)}`;
+      }
+      document.getElementById('taxDisplay').textContent = `$${Number(q.tax || 0).toFixed(2)}`;
+      document.getElementById('totalDisplay').textContent = `$${Number(q.total_amount || 0).toFixed(2)}`;
+
+      if (q.work_order_id) {
+        document.getElementById('trackJobLink').href = `/track/${q.work_order_id}`;
+      }
+    }
+
+    function showAlreadyApproved(q) {
+      document.getElementById('approvalCard').style.display = 'none';
+      const success = document.getElementById('successBanner');
+      success.style.display = 'block';
+      success.innerHTML = `
+        <i class="fa-solid fa-circle-check"></i>
+        <h3>Estimate Digitally Authorized</h3>
+        <p>Electronically signed by <strong>${q.signature_name || q.client_name}</strong> on ${q.signed_at ? new Date(q.signed_at).toLocaleString() : 'record'}.</p>
+        <div style="margin-top: 16px;">
+          <a href="/track/${q.work_order_id || 101}" class="btn-secondary" style="background:var(--primary); color:#ffffff; border:none;">
+            <i class="fa-solid fa-location-crosshairs"></i> Track Live Job Status
+          </a>
+        </div>
+      `;
+    }
+
+    document.getElementById('signForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('approveBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authorizing…';
+
+      const signerName = document.getElementById('signerName').value.trim();
+      const clientNotes = document.getElementById('clientNotesInput').value.trim();
+
+      try {
+        const res = await fetch(`/api/public/quote/${encodeURIComponent(quoteId)}/accept`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            signature_name: signerName,
+            client_notes: clientNotes
+          })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Failed to authorize quote');
+
+        document.getElementById('approvalCard').style.display = 'none';
+        const banner = document.getElementById('successBanner');
+        banner.style.display = 'block';
+        if (result.work_order_id) {
+          document.getElementById('trackJobLink').href = `/track/${result.work_order_id}`;
+        }
+        document.getElementById('statusPill').className = 'status-pill status-approved';
+        document.getElementById('statusPill').innerHTML = '<i class="fa-solid fa-circle-check"></i> Approved & Confirmed';
+      } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Accept Estimate & Confirm Work Order';
+      }
+    });
+
+    loadQuote();
+  </script>
+</body>
+</html>
