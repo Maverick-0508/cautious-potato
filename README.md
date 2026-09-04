@@ -27,6 +27,12 @@ The dashboard reads a runtime override from `window.DASHBOARD_API_BASE`. Place a
 
 If no override is set, the dashboard uses `/api` for same-origin deployments.
 
+You can also override API base at runtime via:
+
+- URL query param: `?apiBase=https://api.lawncraft.com/api`
+- `localStorage.dashboard_api_base` (persisted after `?apiBase=...`)
+- `<meta name="dashboard-api-base" content="https://api.lawncraft.com/api">`
+
 **Required runtime value (production example):**
 
 `DASHBOARD_API_BASE = https://api.lawncraft.com/api`
@@ -36,8 +42,10 @@ If no override is set, the dashboard uses `/api` for same-origin deployments.
 1. Set the Vercel project root to `frontend/`.
 2. Deploy as a static site (no build step required).
 3. `vercel.json` routes non-asset paths to `dashboard.html` while allowing static assets (CSS/JS/images/fonts) to pass through.
-4. Attach the custom domain (example: `dashboard.lawncraft.com`).
-5. Ensure `window.DASHBOARD_API_BASE` is set in `dashboard.html` (or a `config.js` loaded before `dashboard.js`) for production.
+4. Set Vercel environment variable `BACKEND_API_BASE` to your live backend API base (example: `https://api.lawncraft.com/api`).
+5. The included Vercel Function proxy (`frontend/api/[...path].js`) forwards dashboard calls from `/api/*` to `BACKEND_API_BASE/*`.
+6. Attach the custom domain (example: `dashboard.lawncraft.com`).
+7. Optionally set `window.DASHBOARD_API_BASE` when you need direct cross-origin API calls instead of the `/api` proxy.
 
 ## Backend CORS requirement
 
