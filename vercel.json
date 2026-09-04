@@ -1,8 +1,8 @@
 {
+  "outputDirectory": "frontend",
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
-    { "source": "/", "destination": "/frontend/dashboard", "permanent": false },
-    { "source": "/dashboard", "destination": "/frontend/dashboard", "permanent": false }
+    { "source": "/", "destination": "/dashboard", "permanent": false }
   ]
 }
